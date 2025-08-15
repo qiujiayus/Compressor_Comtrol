@@ -1,0 +1,10 @@
+Para_Init();
+
+DebugVars.fgraph1.ptr = &FOC.Iq_PID.PIDU;
+
+DebugVars.u16GraphFlag_debug = 1;
+SpeedRPM_Temp = 5400;
+DebugVars.BandWidth_Coff_Test = 0;
+DebugVars.RC_Gain_Test = 2;
+
+//FOC.FOCState = FOC_OpenLoopRunning;
