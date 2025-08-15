@@ -1,0 +1,104 @@
+Samp_Vars.fCurPMSM.a = InputSignal(0, 0);
+Samp_Vars.fCurPMSM.b = InputSignal(1, 0);
+Samp_Vars.fCurPMSM.c = InputSignal(2, 0);
+FOC.Motor.Speed_Mech = InputSignal(3, 0);
+FOC.Motor.Theta_Mech = InputSignal(4, 0);
+Samp_Vars.fBusVolt = InputSignal(5, 0);
+User_abc2AB(&Samp_Vars.fCurPMSM);
+switch( MainState )
+{
+        case SYS_Waiting:
+            PMSMState = PMSMState_Waiting;
+				MainState = SYS_PROCESS;
+
+            break;
+
+        case SYS_PROCESS:
+            if( Samp_Vars.fBusVolt > 295 && PMSMState == PMSMState_Waiting )
+            {
+                PMSMState = PMSMState_NormalRun;
+                Para_SW_Adj();
+            }
+
+            break;
+
+        case SYS_ERROR:
+
+            PMSMState = PMSMState_Waiting;
+
+            break;
+        case SYS_Debug1:
+            PMSMState = PMSMState_Debug;
+            break;
+        default:
+            break;
+}        
+PMSMState = PMSMState_NormalRun;
+switch(PMSMState)
+{
+    case PMSMState_Waiting:
+        Para_Init_PMSM();
+
+        break;
+    
+    case PMSMState_NormalRun:
+
+
+        FOC_StateMachine();
+        User_AB2abc(&FOC.Vol);
+        SVPWM_Symmetrical(&FOC.Vol,Samp_Vars.fBusVolt);
+
+        break;
+    case PMSMState_Debug:
+        DebugVars.Vol.d = 100;
+        DebugVars.Vol.q = 100;
+
+        User_DQ2AB(&DebugVars.Vol);
+        User_AB2abc(&DebugVars.Vol);
+        SVPWM_Symmetrical(&DebugVars.Vol,Samp_Vars.fBusVolt);
+//        SVPWM_Symmetrical(&DebugVars.Vol,Samp_Vars.fBusVolt);
+        break;
+    default:
+        break;
+}
+
+OutputSignal(0,0) = EPwm1Regs.CMPA.bit.CMPA;
+OutputSignal(0,1) = EPwm2Regs.CMPA.bit.CMPA;
+OutputSignal(0,2) = EPwm3Regs.CMPA.bit.CMPA;
+
+OutputSignal(1,0) = FOC.Vol.d;
+OutputSignal(1,1) = FOC.Vol.q;
+OutputSignal(1,2) = Samp_Vars.fCurPMSM.d;
+OutputSignal(1,3) = Samp_Vars.fCurPMSM.q;
+OutputSignal(1,4) = FOC.Vol.a;
+OutputSignal(1,5) = FOC.Vol.b;
+OutputSignal(1,6) = FOC.Vol.c;
+OutputSignal(1,7) = Samp_Vars.fCurPMSM.a;
+OutputSignal(1,8) = Samp_Vars.fCurPMSM.b;
+OutputSignal(1,9) = Samp_Vars.fCurPMSM.c;
+OutputSignal(1,10) = FOC.Vol.A;
+OutputSignal(1,11) = FOC.Vol.B;
+
+OutputSignal(2,0) = FOC.Motor.Speed_RPM;
+OutputSignal(2,1) = FOC.Motor.Speed_Elec;
+OutputSignal(2,2) = FOC.Motor.Theta_Elec;
+OutputSignal(2,3) = FOC.Motor.Theta_Elec_Comp;
+OutputSignal(2,4) = FOC.ActivePower;
+
+OutputSignal(3,0) = FOC.Speed_PID.PIDU;
+OutputSignal(3,1) = FOC.Id_PID.Ref;
+OutputSignal(3,2) = FOC.Iq_PID.Ref;
+OutputSignal(3,3) = FOC.Id_PID.PIDU;
+OutputSignal(3,4) = FOC.Iq_PID.PIDU;
+OutputSignal(3,5) = FOC.Id_RC.u;
+OutputSignal(3,6) = FOC.Iq_RC.u;
+
+OutputSignal(4,0) = FOC.FW.IdRefInte;//FOC.Speed_PID.Ref - 
+OutputSignal(4,1) = FOC.FW.IdRefCalc;
+OutputSignal(4,2) = FOC.FW.IdRefSum;
+OutputSignal(4,3) = FOC.FW.Vout_Modulation;
+OutputSignal(4,4) = FOC.FW.Vout_MagMax;
+OutputSignal(4,5) = FOC.FW.Vout_Mag;
+
+
+
