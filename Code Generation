@@ -1,0 +1,1560 @@
+
+#include "math.h"
+#include "string.h"
+typedef int                                     int16;
+typedef long                                    int32;
+typedef long long                               int64;
+typedef unsigned int                            Uint16;
+typedef unsigned long                           Uint32;
+
+
+#ifndef USERPUBLICSTRUCT_H_
+#define USERPUBLICSTRUCT_H_
+
+#define PI                      3.1415926535f           // 常量宏定义
+#define PI_2                    6.2831853071f           // 常量宏定义
+#define PI_6                    0.5235987755f           // 常量宏定义
+#define PI_3                    1.0471975512f           // 常量宏定义
+#define PI_4                    0.7853981633f           // 常量宏定义
+#define PI_9                    0.3490658503f           // 常量宏定义
+#define PI_12                   0.2617993877f           // 常量宏定义
+#define PI_18                   0.1745329252f           // 常量宏定义
+#define PI_36                   0.0872664625f           // 常量宏定义
+
+#ifndef GLOBALVARS_H_
+#define GLOBALVARS_H_
+
+
+#define dEPWM_Cal_SW            50000
+#define dDeadTime_PMSM          200                   //死区时间2us
+#define dNarrowPulseTime_PMSM   200                   //窄脉冲时间2us
+
+
+#define dLAUNCH_PAD             0   //Launch Pad 调试模式置1
+#define dPMSM_Run_Mode_DVC      0
+#define dPMSM_Run_Mode_FOC      1
+
+
+#define dF_SW_Set_PMSM          12         //PMSM开关频率
+
+#define dMax_SupVoltage         18
+#define dMin_SupVoltage         12
+#define dMAX_BusVoltage         780
+#define dRated_IsCurrent        28
+#define dRated_PMSMCurrent      28
+#define dMAX_PMSMCurrent        30
+#define dRated_PowerDuty        1                     //定义占空比最大为1
+
+#define dPhase_OutLowLimit      0.5f
+#define dPhase_OutHighLimit     3
+
+#define drpm2theta_int_gain     0.10471975511966f
+
+#define dPC_Control             0
+
+
+#define dPMSM_Rs                0.251f
+#define dPMSM_Ld                3.569e-3f
+#define dPMSM_Lq                5.062e-3f
+#define dPMSM_Npp               2
+#define dPMSM_Npp_inv           0.5f
+#define dPMSM_J                 0.000666f//29.1e-4
+#define dPMSM_Flux              0.1702f //0.0837394f
+
+#define dSpeedSoft_ramp_gain    2000
+#define dMax_ActivePower        5100 *1.02f //校正系数
+
+#define dSamp_threshold         4050
+/*
+ * Lib_PMSM_FOC.h
+ *
+ *  Created on: 2024年5月9日
+ *      Author: wangyz1、LWH
+ */
+
+//速度环带宽设置，单位Hz 带宽不得大于控制频率的1/40，否则要通过Bode图进行分析
+//无感控制时，由于观测器带宽原因，速度环带宽需要更低，通常取10Hz以内
+#define dFOC_SpeedLoopBandWidth 10
+#define dFOC_CurrentRC_Gain     3
+#define dFOC_SMO_IterateCount   5
+//IF启动控制设置
+#define dIF_Speed_FinalValue    1200
+#define dIF_Iq_FinalValue       10
+#define dIF_Iq_Decrease_Gain    50
+#define dIF_SpeedSoft_Ramp_Gain 2000
+#define dIF_IqSoft_Ramp_Gain    1000      //100ms爬升时间
+//控制器饱和与弱磁控制设置
+#define dFOC_MaxModulationIndex 0.95f                       //窄脉冲限制下的最大占空比
+#define dFOC_FWCModulationIndex 0.95f                       //弱磁控制占空比饱和程度，实际会将占空比控制在dFOC_MaxModulationIndex*dFOC_FWCModulationIndex
+#define dFOC_MaxFWCId           -15                         //弱磁控制Id最大值
+#define dFOC_FWCInteGain        500                         //弱磁控制积分增益
+#define dFOC_CurRCEnabledModuIndex  0.7f                    //谐振控制器启用调制比
+#define dFOC_CurRCDisabledModuIndex 0.9f                    //谐振控制器禁用调制比
+//IF电流振荡抑制设置
+#define dFOC_CurSupressGain             9.0f
+#define dIFCur_PowerFB_FilterBW         10.0f
+#define dIFCur_PowerFB_GainSatuSpeed    400
+//高频注入设置
+#define dFOC_Inject_Volt        5.0f
+#define dFOC_Square_PLL_Kp      1.0f
+#define dFOC_Square_PLL_Ki      1.0f
+#define dFOC_Square_Filter_num  0.00049987503124218f
+#define dFOC_Square_Filter_den  0.99950012496875782f
+//电流估算设置
+#define dEst_Vs_Min             0.3f                  //估算VS最小值
+#define dEst_Vs_Max             0.8f                  //估算VS最大值
+#define dEst_Calib_Max          1.08f                 //估算电流校准系数最大
+#define dEst_Calib_Min          0.96f                 //估算电流校准系数最小
+#define dEst_Gain               0.13f                 //估算电流最大-最小(校准系数)
+/**------------------------------------------------------------**/
+struct ConverterFreq_STRUCT   //三相变量结构体
+{
+    float F_SW_Set;             //开关频率设定值   单位kHz
+    float F_SW;                 //开关频率实际值   单位kHz
+    float F_Ctrl;               //控制频率        单位kHz
+    float T_SW;                 //开关周期
+    float T_Ctrl;               //控制周期
+    Uint16 EPWMPeriod;
+};
+typedef union
+{
+    volatile float *ptr; //Aligned to lower 16-bits
+    Uint32 pad; //32-bits
+} CLA_FPTR;
+struct DQTrans_STRUCT      // 坐标变换
+{
+    float Phase;        //
+
+    float a;         //
+    float b;
+    float c;
+
+    float A;         //
+    float B;
+
+    float d;         //
+    float q;
+};
+
+struct abc_STRUCT   //三相变量结构体
+{
+    float a;
+    float b;
+    float c;
+};
+
+struct PID_STRUCT       // PID算法结构体带弱磁
+{
+    float Ref;       // PID算法参考值
+
+    float err;       // 当前拍误差err(k)
+    float err1;      // 前两拍误差，err(k-1)
+    float err2;      // 前三拍误差，err(k-2)
+
+    float PIDU;      // 当前拍PID控制器输出
+    float PIDU1;     // 上一拍PID控制器输出
+
+    float Kp;
+    float Ki;
+};
+
+struct SEC_ORDER_IIR_STRUCT
+{
+    float input;
+    float input_z1;
+    float input_z2;
+    float u;
+    float u_z1;
+    float u_z2;
+};
+
+struct SEC_ORDER_IIR_COFF_STRUCT
+{
+    float num1;
+    float num2;
+    float num3;
+    float den1;
+    float den2;
+    float den3;
+};
+
+struct Motor_STRUCT
+{
+    float Speed_Elec;
+    float Speed_Mech;
+    float Speed_RPM;
+    float Theta_Elec_Comp;          //1.5Ts补偿后的角度
+    float Theta_Elec;
+    float Theta_Mech;
+    float Theta_FieldWeak;
+};
+
+struct RefSoftStart_STRUCT
+{
+    float Value;                    //实际参考转速
+    float ValueRef;                 //实际参考转速
+    float ValueOpt;                 //目标转速
+    Uint16 SoftStartRampFlag;       //正在软启标志位
+    Uint16 dir;                     //方向
+    float SoftRamp;                 //软启动斜率
+};
+
+
+struct DMA_CPUData_STRUCT
+{
+    Uint16 u0;
+    Uint16 u1;
+    Uint16 u2;
+    Uint16 u3;
+    Uint16 u4;
+    Uint16 u5;
+    Uint16 u6;
+    Uint16 u7;
+    Uint16 u8;
+    Uint16 u9;
+    Uint16 u10;
+    Uint16 u11;
+    Uint16 u12;
+    Uint16 u13;
+    Uint16 u14;
+    Uint16 u15;
+    Uint16 u16;
+    Uint16 u17;
+    Uint16 u18;
+    Uint16 u19;
+    Uint16 u20;
+    Uint16 u21;
+    Uint16 u22;
+    Uint16 u23;
+    Uint16 u24;
+    Uint16 u25;
+    Uint16 u26;
+    Uint16 u27;
+    Uint16 u28;
+    Uint16 u29;
+    Uint16 u30;
+    Uint16 u31;
+};
+/*********************************************************************
+* 功能描述：系统工作模式结构体定义
+**********************************************************************/
+enum SYSTEMState
+{
+    SYS_Waiting,                //待机
+    SYS_PROCESS,
+    SYS_Debug1,                 //测试
+    SYS_ERROR
+};
+ volatile enum SYSTEMState    MainState;
+
+enum PMSMState
+{
+    PMSMState_Waiting,
+    PMSMState_BootStrap,
+    PMSMState_NormalRun,
+    PMSMState_Debug
+};
+ volatile enum PMSMState      PMSMState;
+/*********************************************************************
+* 功能描述：系统状态位结构体定义
+**********************************************************************/
+struct SYSFlg_BITS
+{
+    Uint16 PowerOn_Command:1;   //开机指令
+    Uint16 Normal_OFF:1;        //正常关机
+    Uint16 PMSM_Inverter_On:1;
+    Uint16 PMSM_Debug:1;
+    Uint16 PMSM_LineReduceSpeed:1;
+    Uint16 Bus_Connected:1;
+    Uint16 Temper_Normal:1;
+    Uint16 PWM_Control_Normal:1;
+    Uint16 CAN_Connected:1;
+    Uint16 PWM_Connected:1;
+    Uint16 FOC_FieldWeakening_Flag:1;
+};
+
+union SYSFlg_Var
+{
+    Uint16          all;
+    struct SYSFlg_BITS bit;
+};
+ volatile union SYSFlg_Var SYSFlag;
+
+/*********************************************************************
+* 功能描述：系统故障状态位结构体定义
+**********************************************************************/
+struct FaultType_BITS
+{
+    Uint16 PMSM_OCP:1;                          //1三相过流保护
+    Uint16 PMSM_PhaseOutP:1;                    //2缺相保护
+    Uint16 PMSM_FOCSpeedDirP:1;                 //4速度反转保护
+    Uint16 PMSM_FOCSpeedErrorP:1;               //8速度误差保护
+    Uint16 PMSM_SupVoltP:1;                     //16辅助电源保护
+    Uint16 Bus_OVP:1;                           //32过压保护
+    Uint16 Bus_UVP:1;                           //64欠压保护
+    Uint16 Bus_OCP:1;                           //128母线过流保护
+    Uint16 Bus_OPP:1;                           //256过功率保护
+    Uint16 CurSampleP:1;                        //512三相AD采样保护
+    Uint16 Temper_OTP:1;                        //1024过温温度保护
+    Uint16 CommunicationP:1;                    //2048掉通信保护
+    Uint16 OverRestartFail:1;                   //4096重启失败保护
+    Uint16 PMSM_StepOutP:1;                     //8192失步故障
+    Uint16 Inverter_OTP:1;
+};
+
+union FaultType_Var
+{
+    Uint16          all;
+    struct FaultType_BITS bit;
+};
+ volatile union FaultType_Var FaultType;
+/*********************************************************************
+* 功能描述：AD采样变量偏置结构体定义
+**********************************************************************/
+struct OffSet_STRUCT
+{
+    float    OS_CurPMSMA;
+    float    OS_CurPMSMB;
+    float    OS_CurPMSMC;
+    Uint16   CountPMSM;
+    Uint16   FlagPMSM;
+
+    Uint32     temp_OS_CurPMSMA;
+    Uint32     temp_OS_CurPMSMB;
+    Uint32     temp_OS_CurPMSMC;
+    float    OS_BusCur;
+
+    Uint32     temp_OS_BusCur;
+};
+ volatile struct OffSet_STRUCT OffSetRes;
+
+
+/*********************************************************************
+* 功能描述：AD采样变量结构体定义
+**********************************************************************/
+
+struct Single_SampRes_STRUCT            // 用以存放采样结果的结构体
+{
+    struct DQTrans_STRUCT   fCurPMSM;
+    struct DQTrans_STRUCT   fCurPMSMFiltered;
+    float                   fTemper;      //温度
+    float                   fTemperFiltered;      //温度
+    float                   fBusCur;
+    float                   fBusCurFiltered;
+    float                   fBusCurSum;
+    float                   fSupVolt;
+    float                   fBusVolt;
+    float                   fBusVoltFiltered;
+    Uint16                  u16TempADC;
+    int16                  s16Temp;
+
+};
+ volatile struct Single_SampRes_STRUCT Samp_Vars;      //存放采样结果
+
+/*********************************************************************
+* 功能描述：系统时间片结构体定义
+**********************************************************************/
+
+struct TIMER_FLAG_BITS {                  // bits description
+    Uint16 Normal_OFF:1;                    // 0    接受关机指令导致的停机
+    Uint16 BusVoltAbnormal_OFF:1;
+    Uint16 TemperAbnormal_OFF:1;
+    Uint16 SYSRecovery;
+};
+
+union TIMER_FLAG_UNION {
+    Uint32  all;
+    struct  TIMER_FLAG_BITS  bit;
+};
+
+struct TIMER_COUNT_STRUCT {
+    Uint32  Normal_OFF;
+    Uint32  BusVoltAbnormal_OFF;
+    Uint32  TemperAbnormal_OFF;
+    Uint32  LossCANCommunication;
+    Uint32  LossPWMCommunication;
+    Uint32  PWMControl_Time;
+    Uint16 SYSRecovery;
+};
+
+
+
+struct BootStrap_STRUCT
+{
+    Uint16 BootStrap_Count;
+    Uint16 BootStrap_Flag;
+};
+ volatile struct BootStrap_STRUCT PMSM_BootStrap;
+
+struct DebugVars_STRUCT
+{
+    float  err_adc[3];
+    Uint16 PowerOff_Command;
+
+    Uint16 u16GraphCount_debug;
+    Uint16 u16GraphFlag_debug;
+    float fGraph1_debug[300];
+    float fGraph2_debug[300];
+    CLA_FPTR fgraph1;
+    CLA_FPTR fgraph2;
+
+    Uint16 Clear_Error;
+    Uint16 start;
+    Uint16 Off;
+    struct DQTrans_STRUCT Vol;
+    float  ViturlR;
+    float  SpeedRef;
+    float BandWidth_Coff_Test;
+    float RC_Gain_Test;
+};
+
+struct Watchdog_STRUCT
+{
+    Uint16 ePWM_ISR;
+    Uint16 TIMER_ISR;
+    Uint32 ResetCause;
+};
+
+
+#endif /* GLOBALVARS_H_ */
+
+
+
+enum FOCState
+{
+    FOC_PositionFix = 0,
+    FOC_OpenLoopRunning,
+    FOC_OpenToCloseLoop,
+    FOC_NormalRunning,
+    FOC_FieldWeakRunning,
+    FOC_OrderOff
+};
+
+struct FOC_Harmonic_RC_STRUCT
+{
+    float err;
+    float err_z1;
+    float u;
+    float u_z1;
+    float u_z2;
+    float den;
+    float num1;
+    float num2;
+};
+
+struct FOC_FieldWeakening_STRUCT
+{
+    float Vd_SatuVol;
+    float Vq_SatuVol;
+    float Vd_Mag2;
+    float Vq_Mag2;
+    float Speed_Elec_Ref;
+    float IdRefCalc;
+    float IdRefInte;
+    float IdRefSum;
+    float Vout_Mag;
+    float Vout_MagMax;
+    float Vout_Mag2Max;
+    float Vout_Modulation;
+};
+
+struct SMO_STRUCT
+{
+    float Ts;
+    float EMF_filter_w;
+    float EMF_filter_num;
+    float EMF_filter_den;
+    float we_filter_num;
+    float we_filter_den;
+    float Lgain;
+    float Ugain;
+    float Ldqgain;
+    float flux_gain;
+    float wedqgain_temp;
+    float i_Ahat;
+    float i_Bhat;
+    float u_Aall_k1;
+    float u_Ball_k1;
+    float u_Aall_k2;
+    float u_Ball_k2;
+    float error_iA;
+    float error_iB;
+    float EMF_A;
+    float EMF_B;
+    float z_A;
+    float z_B;
+    float smo_gain;
+    float theta_est_inte;
+    float speed_elec_est;
+    float EMF_PLL_gain;
+    float PLL_error_norm_gain;
+    float theta_filter_comp;
+    float PLL_Kp;
+    float PLL_Ki;
+    float PLL_error;
+    float PLL_error1;
+    float PLL_out;
+    float theta_est;
+};
+
+struct SQUARE_INJECT_STRUCT
+{
+    Uint16 init_flag;
+    Uint16 count;
+    Uint16 inject_count;
+    float inject_gain_L;
+    float inject_gain;
+    float inject_voltage;
+    float derror_zero;
+    float derror_posi;
+    float derror_negi;
+    float theta_est;
+    float qz;
+    float qz1;
+    float dz;
+    float dz1;
+    float derror;
+    float qerrorz;
+    float qerrorz1;
+    float PLL_out;
+    float speed_elec_est;
+    struct DQTrans_STRUCT High_Cur;
+    struct DQTrans_STRUCT High_Volt;
+};
+
+struct Supress_STRUCT
+{
+    float ActivePower;
+    float DeltaWe;
+
+    float Power_filter_den;
+    float Power_hpf_in;
+    float Power_hpf_in_z1;
+    float Power_hpf_out;
+
+};
+
+struct PMSM_FOC_STRUCT
+{
+    enum FOCState FOCState;
+    struct Motor_STRUCT Motor;
+    struct PID_STRUCT Id_PID;
+    struct PID_STRUCT Iq_PID;
+    struct FOC_Harmonic_RC_STRUCT Id_RC;
+    struct FOC_Harmonic_RC_STRUCT Iq_RC;
+    struct FOC_Harmonic_RC_STRUCT HFPLL_RC;
+    struct PID_STRUCT Speed_PID;
+    struct PID_STRUCT Is_PID;
+    struct PID_STRUCT Power_PID;
+    struct DQTrans_STRUCT Vol;
+    struct DQTrans_STRUCT Vol_Fund;
+    struct SQUARE_INJECT_STRUCT Square;
+    struct Supress_STRUCT Cur_Sup;
+    struct SMO_STRUCT SMO;
+    struct RefSoftStart_STRUCT IFStart_IqRef;
+    struct FOC_FieldWeakening_STRUCT FW;
+    float ActivePower;
+    float EstActivePower;
+    float CalPower;
+    float EstPowerCur;
+    float BusCurSum;
+    float BusCurFilter;
+    float EstPowerCurFilter;
+    float ReactivePower;
+    float CalculateCur;
+    float PowerLimitGain;
+    float PowerLimitGainFilter;
+    Uint16 FilterCount;
+    Uint16 OrderOffCount;
+    Uint16 StateSwitchCount;
+    Uint16 CurRC_Enabled;
+    Uint16 HFPLLRC_Enabled;
+    float	Impedance_Volt_d;
+    float	Impedance_Volt_d_z;
+    float	Impedance_Volt_q;
+    float	Impedance_Volt_q_z;
+};
+
+ struct PMSM_FOC_STRUCT FOC;
+
+ void FOC_Init();
+ void FOC_SquareInject();
+ void FOC_InitPositionDetect();
+ void FOC_SpeedCloseLoop();
+ void FOC_IsCloseLoop();
+ void FOC_PowerCloseLoop();
+ void FOC_CurCloseLoop();
+ inline void FOC_Saturation_FieldWeakening();
+ inline void FOC_Resonant_Controllers();
+ inline void FOC_HFPLL_Resonant_Controllers();
+ void FOC_SMO();
+ void FOC_IFStart();
+ void FOC_IFStartSwitchState();
+ void FOC_IFCurSuppress();
+ void FOC_PowerDetect();
+
+ struct Watchdog_STRUCT WatchdogFlag;
+
+ volatile struct DebugVars_STRUCT DebugVars;
+
+ struct ConverterFreq_STRUCT Freq_PMSM;
+ struct RefSoftStart_STRUCT SpeedRef;
+struct PMSM_FOC_STRUCT FOC;
+
+inline void User_abc2AB(volatile struct DQTrans_STRUCT *Trans)
+{
+    Trans->A = ( Trans->a - Trans->b / 2 - Trans->c / 2) * 0.66666666666666666f;
+    Trans->B = 0.577350269f * (Trans->b - Trans->c);
+}
+
+inline void User_AB2abc(volatile struct DQTrans_STRUCT *Trans)
+{
+    float tempA = - Trans->A / 2;
+    float tempB = 0.866025403f * Trans->B ;
+    Trans->a = Trans->A;
+    Trans->b = ( tempA + tempB ) ;
+    Trans->c = ( tempA - tempB ) ;
+}
+
+inline void User_DQ2abc(volatile struct DQTrans_STRUCT *Trans)
+{
+    float AngleA = Trans->Phase;
+    float AngleB = Trans->Phase - (PI * 2.0) / 3.0;
+    float AngleC = Trans->Phase + (PI * 2.0) / 3.0;
+
+    Trans->a = (Trans->d * cos(AngleA) -  Trans->q * sin(AngleA)) ;
+    Trans->b = (Trans->d * cos(AngleB) -  Trans->q * sin(AngleB)) ;
+    Trans->c = (Trans->d * cos(AngleC) -  Trans->q * sin(AngleC)) ;
+}
+
+inline void User_abc2DQ(volatile struct DQTrans_STRUCT *Trans)
+{
+    float AngleA = Trans->Phase;
+    float AngleB = Trans->Phase - (PI * 2.0) / 3.0;
+    float AngleC = Trans->Phase + (PI * 2.0) / 3.0;
+
+    Trans->d =  2.0f/3.0f * (Trans->a * cos(AngleA) + Trans->b * cos(AngleB) + Trans->c * cos(AngleC));
+    Trans->q = -2.0f/3.0f * (Trans->a * sin(AngleA) + Trans->b * sin(AngleB) + Trans->c * sin(AngleC));
+}
+
+inline void User_AB2DQ(volatile struct DQTrans_STRUCT *Trans)
+{
+    float cosPhase = cos(Trans->Phase);
+    float sinPhase = sin(Trans->Phase);
+
+    Trans->d =  Trans->A * cosPhase + Trans->B * sinPhase;
+    Trans->q = -Trans->A * sinPhase + Trans->B * cosPhase;
+}
+
+inline void User_DQ2AB(volatile struct DQTrans_STRUCT *Trans)
+{
+    float cosPhase = cos(Trans->Phase);
+    float sinPhase = sin(Trans->Phase);
+
+    Trans->A = Trans->d * cosPhase - Trans->q * sinPhase;
+    Trans->B = Trans->d * sinPhase + Trans->q * cosPhase;
+}
+#endif
+//main.c
+ void LED();
+ void COM_MODE();
+
+//UserSet.c
+ void UserSetEPWM();              //EPWM模块自定义
+ void UserSetCana();              //CANA模块自定义
+ void Para_SW_Adj();
+ void Para_Init();
+ void UserSetVar();
+ void DebugVarsInit();
+//UserFunc_PMSM.c
+ void Abtain_PMSM_ADC_Result();
+ void RefSoftStart_Init(struct RefSoftStart_STRUCT *Ref, Uint16 Ramp, float T_Ctrl);
+ void RefSoftStart(struct RefSoftStart_STRUCT *Ref);
+ void PMSMInverterOn();
+ void PMSMInverterOff();
+ void PMSMBootStrapOn();
+ void PMSMBootStrapOff();
+ void Para_Init_PMSM();
+//Com_and_Fault.c
+ Uint16 AC_COMP_Control[8];
+ Uint16 COMP_Information[8];
+
+ volatile float SpeedRPM_Temp;
+ 
+ 
+void FOC_Init()
+{
+    float CurPID_Ki_Temp;
+    memset((void *)&FOC,0,sizeof(FOC));
+
+    FOC.Id_PID.Kp = 0.32f * Freq_PMSM.F_Ctrl * dPMSM_Ld * 1000;
+    FOC.Iq_PID.Kp = 0.32f * Freq_PMSM.F_Ctrl * dPMSM_Lq * 1000;
+    CurPID_Ki_Temp = 0.32f * Freq_PMSM.F_Ctrl * dPMSM_Rs * 1000;
+    CurPID_Ki_Temp = fmax(CurPID_Ki_Temp, FOC.Id_PID.Kp * 1000);
+    FOC.Iq_PID.Ki = FOC.Id_PID.Ki = CurPID_Ki_Temp * Freq_PMSM.T_Ctrl;
+
+    FOC.Speed_PID.Kp = dFOC_SpeedLoopBandWidth * 6 * PI_2 / 1.5f / 60 * dPMSM_J / dPMSM_Flux / dPMSM_Npp;
+    FOC.Speed_PID.Ki = FOC.Speed_PID.Kp * Freq_PMSM.T_Ctrl * ( dFOC_SpeedLoopBandWidth / 1.0 );
+
+    FOC.SMO.Ts = Freq_PMSM.T_Ctrl / dFOC_SMO_IterateCount;
+    FOC.SMO.EMF_filter_w = SpeedRef.Value / 60 * PI_2 * dPMSM_Npp;
+    FOC.SMO.EMF_filter_w = fmaxf(FOC.SMO.EMF_filter_w,1000);
+    FOC.SMO.EMF_filter_den = expf(-FOC.SMO.EMF_filter_w * FOC.SMO.Ts);
+    FOC.SMO.EMF_filter_num = 1 - FOC.SMO.EMF_filter_den;
+
+    FOC.SMO.Lgain = 1 / dPMSM_Ld;
+    FOC.SMO.Ugain = dPMSM_Rs * FOC.SMO.Lgain;
+    FOC.SMO.Ldqgain = dPMSM_Ld - dPMSM_Lq;
+    FOC.SMO.flux_gain = 1.5f * dPMSM_Ld;
+
+    FOC.SMO.EMF_PLL_gain = dPMSM_Flux;
+    FOC.SMO.PLL_Kp = 2000;
+    FOC.SMO.PLL_Ki = 2000*100 * FOC.SMO.Ts;
+    FOC.SMO.we_filter_den = expf(-2513.2f * FOC.SMO.Ts);
+    FOC.SMO.we_filter_num = 1 - FOC.SMO.we_filter_den;
+
+    //FOC.Power_HF_Coff.den1 = 1 - dFOC_PowerFB_FilterBW * Freq_PMSM.T_Ctrl;
+   // FOC.Power_HF_Coff.den1 = fmaxf(FOC.Power_HF_Coff.den1, 0);
+    
+    RefSoftStart_Init(&FOC.IFStart_IqRef, dIF_IqSoft_Ramp_Gain, Freq_PMSM.T_Ctrl);
+}
+
+void FOC_StateMachine()
+{
+    FOC_PowerDetect();
+
+    switch (FOC.FOCState)
+    {
+    case FOC_PositionFix:
+        FOC.Motor.Theta_Elec_Comp = -PI / 2;
+        FOC.Motor.Theta_Elec = FOC.Motor.Theta_Elec_Comp = -PI / 2;
+        FOC.Id_PID.Ref = 0;
+        FOC.Iq_PID.Ref = 4;
+        FOC_CurCloseLoop();
+        if (FOC.StateSwitchCount++ > Freq_PMSM.F_Ctrl * 200)//200ms
+        {
+            FOC.StateSwitchCount = 0;
+            FOC.IFStart_IqRef.Value = 4;
+            FOC.IFStart_IqRef.ValueRef = 4;
+            FOC.IFStart_IqRef.ValueOpt = 4;
+            FOC.FOCState = FOC_OpenLoopRunning;
+        }
+        break;
+    case FOC_OpenLoopRunning:
+        FOC_SMO();
+        FOC_IFStart();
+        FOC_CurCloseLoop();
+        if (SpeedRef.Value >= SpeedRef.ValueRef && SYSFlag.bit.PMSM_Debug == 0)
+        {
+            SpeedRef.SoftRamp = dSpeedSoft_ramp_gain * Freq_PMSM.T_Ctrl;
+            FOC.FOCState = FOC_OpenToCloseLoop;
+        }
+        break;
+    case FOC_OpenToCloseLoop:
+        FOC_SMO();
+        FOC_IFStartSwitchState();
+        FOC_CurCloseLoop();
+        break;
+    case FOC_NormalRunning:
+        FOC_PowerDetect();
+        FOC_SMO();
+        FOC.Motor.Speed_Elec = FOC.SMO.speed_elec_est;
+        FOC.Motor.Theta_Elec = FOC.SMO.theta_est;
+        FOC.Motor.Theta_Elec_Comp = FOC.Motor.Theta_Elec + FOC.Motor.Speed_Elec * 1.5f * Freq_PMSM.T_Ctrl;
+//        FOC.Motor.Theta_Elec_Comp = FOC.SMO.theta_est
+//                + FOC.Motor.Speed_Elec * 1.5f * Freq_PMSM.T_Ctrl;
+        FOC.Motor.Speed_RPM = FOC.Motor.Speed_Elec * 60 / PI_2 / dPMSM_Npp;
+
+        SpeedRef.ValueRef = SpeedRPM_Temp;
+        SpeedRef.ValueRef = fmax(0,SpeedRef.ValueRef);
+        SpeedRef.ValueRef = fmin(5400,SpeedRef.ValueRef);
+        RefSoftStart (&SpeedRef);
+        FOC.FW.Speed_Elec_Ref = FOC.Speed_PID.Ref * (PI_2 * dPMSM_Npp / 60);
+        FOC.Speed_PID.Ref = SpeedRef.Value;
+        FOC.Speed_PID.Ref = fmax(0,FOC.Speed_PID.Ref);
+        FOC.Speed_PID.Ref = fmin(5400,FOC.Speed_PID.Ref);
+        FOC_SpeedCloseLoop();
+        FOC.Iq_PID.Ref = FOC.Speed_PID.PIDU;
+        FOC_CurCloseLoop();
+        break;
+    case FOC_FieldWeakRunning:
+        FOC_PowerDetect();
+        FOC_SMO();
+        FOC.Motor.Speed_Elec = FOC.SMO.speed_elec_est;
+        FOC.Motor.Theta_Elec = FOC.SMO.theta_est;
+        FOC.Motor.Theta_Elec_Comp = FOC.Motor.Theta_Elec + FOC.Motor.Speed_Elec * 1.5f * Freq_PMSM.T_Ctrl;
+//        FOC.Motor.Theta_Elec_Comp = FOC.SMO.theta_est
+//                + FOC.Motor.Speed_Elec * 1.5f * Freq_PMSM.T_Ctrl;
+        FOC.Motor.Speed_RPM = FOC.Motor.Speed_Elec * 60 / PI_2 / dPMSM_Npp;
+
+        SpeedRef.ValueRef = SpeedRPM_Temp;
+        RefSoftStart(&SpeedRef);
+        FOC.FW.Speed_Elec_Ref = FOC.Is_PID.Ref * (PI_2 * dPMSM_Npp / 60);
+
+        FOC.Is_PID.Ref = SpeedRef.Value;
+        FOC_PowerCloseLoop();
+        FOC_IsCloseLoop();
+        FOC_CurCloseLoop();
+
+//        FOC_SpeedCloseLoop();
+//        FOC.Iq_PID.Ref = FOC.Speed_PID.PIDU;
+//        FOC.Iq_PID.Ref = fminf(dRated_PMSMCurrent, FOC.Iq_PID.Ref);
+//        FOC.Iq_PID.Ref = fmaxf(-dRated_PMSMCurrent, FOC.Iq_PID.Ref);
+//        FOC_CurCloseLoop();
+        break;
+    default:
+
+        break;
+    }
+}
+
+extern void FOC_StateMachine();
+
+
+
+
+void FOC_InitPositionDetect()
+{
+    FOC_SquareInject();
+    User_abc2AB(&Samp_Vars.fCurPMSM);
+    FOC.Square.dz = FOC.Square.High_Cur.d;
+    FOC.Square.derror = FOC.Square.dz - FOC.Square.dz1;
+    FOC.Square.dz1 = FOC.Square.dz;
+    if (FOC.Square.init_flag == 0)                   //初始位置角度定位
+    {
+        FOC.Vol_Fund.d = FOC.Square.inject_voltage;
+        FOC.Vol_Fund.q = 0;
+        FOC.Square.count++;
+        if (FOC.Square.count > 20 * Freq_PMSM.F_SW)
+        {
+            FOC.Square.derror_zero += fabsf(FOC.Square.derror);
+            if (FOC.Square.count > 50 * Freq_PMSM.F_SW)
+            {
+                FOC.Square.init_flag = 1;
+                FOC.Square.count = 0;
+            }
+        }
+    }
+    else if (FOC.Square.init_flag == 1)              //初始位置角度极性判断
+    {
+        Samp_Vars.fCurPMSM.Phase = FOC.Square.theta_est;
+        User_AB2DQ(&Samp_Vars.fCurPMSM);
+        FOC.Id_PID.Ref = -5.0f;
+        FOC.Id_PID.err = FOC.Id_PID.Ref - Samp_Vars.fCurPMSM.d;
+        FOC.Id_PID.PIDU = FOC.Id_PID.PIDU
+                + FOC.Id_PID.Kp * (FOC.Id_PID.err - FOC.Id_PID.err1)
+                + FOC.Id_PID.Ki * FOC.Id_PID.err;
+        FOC.Id_PID.err1 = FOC.Id_PID.err;
+        FOC.Vol_Fund.d = FOC.Id_PID.PIDU + FOC.Square.inject_voltage;
+        FOC.Vol_Fund.q = 0.0f;
+        FOC.Square.count++;
+        if (FOC.Square.count > 10 * Freq_PMSM.F_SW)
+        {
+            FOC.Square.derror_negi += fabsf(FOC.Square.derror);
+            if (FOC.Square.count > 200 * Freq_PMSM.F_SW)
+            {
+                FOC.Square.init_flag = 2;
+                FOC.Square.count = 0;
+            }
+        }
+    }
+    else if (FOC.Square.init_flag == 2)              //初始位置极性判断
+    {
+        Samp_Vars.fCurPMSM.Phase = FOC.Square.theta_est;
+        User_AB2DQ(&Samp_Vars.fCurPMSM);
+        FOC.Id_PID.Ref = 5.0f;
+        FOC.Id_PID.err = FOC.Id_PID.Ref - Samp_Vars.fCurPMSM.d;
+        FOC.Id_PID.PIDU = FOC.Id_PID.PIDU
+                + FOC.Id_PID.Kp * (FOC.Id_PID.err - FOC.Id_PID.err1)
+                + FOC.Id_PID.Ki * FOC.Id_PID.err;
+        FOC.Id_PID.err1 = FOC.Id_PID.err;
+        FOC.Vol_Fund.d = FOC.Id_PID.PIDU + FOC.Square.inject_voltage;
+        FOC.Vol_Fund.q = 0.0f;
+        FOC.Square.count++;
+        if (FOC.Square.count > 10 * Freq_PMSM.F_SW)
+        {
+            FOC.Square.derror_posi += fabsf(FOC.Square.derror);
+            if (FOC.Square.count > 200 * Freq_PMSM.F_SW)
+            {
+                if (FOC.Square.derror_posi < FOC.Square.derror_negi)
+                {
+                    FOC.Square.theta_est += PI;
+                }
+                FOC.Square.init_flag = 0;
+                FOC.Square.count = 0;
+                FOC.SMO.theta_est_inte = FOC.Square.theta_est;
+                memset((void*) &FOC.Id_PID, 0, sizeof(FOC.Id_PID));
+                PMSMState = PMSMState_BootStrap;
+                FOC.Motor.Theta_Elec = FOC.Square.theta_est;
+
+            }
+        }
+    }
+    FOC.Vol_Fund.Phase = FOC.Square.theta_est;
+    User_DQ2AB(&FOC.Vol_Fund);
+}
+
+
+void FOC_IFStart()
+{
+    SpeedRef.SoftRamp = dIF_SpeedSoft_Ramp_Gain * Freq_PMSM.T_Ctrl;        //斜率
+    SpeedRef.ValueRef = dIF_Speed_FinalValue;        //参考转速   //T = dIF_Speed_FinalValue/(dIF_SpeedSoft_Ramp_Gain)
+    RefSoftStart(&SpeedRef);
+    FOC.IFStart_IqRef.ValueRef = dIF_Iq_FinalValue;
+    RefSoftStart(&FOC.IFStart_IqRef);              //T = 10ms,T = dIF_Iq_FinalValue/(dIF_IqSoft_Ramp_Gain)
+
+
+    FOC.Motor.Speed_RPM = SpeedRef.Value;        //自己给的转速
+    FOC.Motor.Speed_Elec = FOC.Motor.Speed_RPM / 60 * PI_2 * dPMSM_Npp
+            - FOC.Cur_Sup.DeltaWe;
+    FOC_IFCurSuppress();
+    FOC.Motor.Theta_Elec_Comp += FOC.Motor.Speed_Elec * Freq_PMSM.T_Ctrl;
+    if (FOC.Motor.Theta_Elec_Comp > PI_2)
+    {
+        FOC.Motor.Theta_Elec_Comp -= PI_2;
+    }
+    FOC.Motor.Theta_Elec = FOC.Motor.Theta_Elec_Comp;
+    FOC.Id_PID.Ref = 0;
+    FOC.Iq_PID.Ref = FOC.IFStart_IqRef.Value;
+
+}
+void FOC_IFCurSuppress()
+{
+    FOC.Cur_Sup.ActivePower = Samp_Vars.fCurPMSM.A * FOC.Vol.A
+            + Samp_Vars.fCurPMSM.B * FOC.Vol.B;
+    FOC.Cur_Sup.ActivePower = 1.5f * FOC.Cur_Sup.ActivePower;
+
+    FOC.Cur_Sup.Power_hpf_in = FOC.Cur_Sup.ActivePower;
+    FOC.Cur_Sup.Power_hpf_out = FOC.Cur_Sup.Power_filter_den
+            * FOC.Cur_Sup.Power_hpf_out
+            + (FOC.Cur_Sup.Power_hpf_in - FOC.Cur_Sup.Power_hpf_in_z1);
+    FOC.Cur_Sup.Power_hpf_in_z1 = FOC.Cur_Sup.Power_hpf_in;
+
+    if (FOC.Motor.Speed_RPM > dIFCur_PowerFB_GainSatuSpeed)
+    {
+        FOC.Cur_Sup.DeltaWe = dFOC_CurSupressGain * FOC.Cur_Sup.Power_hpf_out
+                / FOC.Motor.Speed_Elec;
+    }
+    else
+    {
+        FOC.Cur_Sup.DeltaWe = dFOC_CurSupressGain
+                * FOC.Cur_Sup.Power_hpf_out/dIFCur_PowerFB_GainSatuSpeed;
+    }
+}
+void FOC_IFStartSwitchState()
+{
+    float IF_theta_err;
+    FOC.Motor.Theta_Elec_Comp += FOC.Motor.Speed_Elec * Freq_PMSM.T_Ctrl;
+    if (FOC.Motor.Theta_Elec_Comp > PI_2)
+    {
+        FOC.Motor.Theta_Elec_Comp -= PI_2;
+    }
+    FOC.Motor.Theta_Elec = FOC.Motor.Theta_Elec_Comp;
+    IF_theta_err = (FOC.SMO.theta_est - FOC.Motor.Theta_Elec_Comp);
+    if (IF_theta_err > PI)
+        IF_theta_err -= PI_2;
+    if (IF_theta_err < - PI)
+        IF_theta_err += PI_2;
+    IF_theta_err = fabsf(IF_theta_err);
+    FOC.Iq_PID.Ref -= dIF_Iq_Decrease_Gain * Freq_PMSM.T_Ctrl * IF_theta_err;
+//    Serial_SCI.WatchValue[36] = IF_theta_err;
+    /*SpeedCloseLoop Switch*/
+    if (IF_theta_err < 0.174532925199433f)
+    {
+        FOC.Speed_PID.PIDU = FOC.Iq_PID.Ref;
+        FOC.Speed_PID.err = SpeedRef.Value
+                - FOC.SMO.speed_elec_est * 60 / PI_2 / dPMSM_Npp;
+        FOC.Speed_PID.err1 = FOC.Speed_PID.err;
+        FOC.FOCState = FOC_NormalRunning;
+        SpeedRef.ValueRef = SpeedRPM_Temp;
+    }
+}
+void FOC_Resonant_Controllers()
+{
+    float w_temp, err_id, err_iq;
+//    float BandWidth_Coff = 0.01f;
+    DebugVars.BandWidth_Coff_Test = fmin(DebugVars.BandWidth_Coff_Test,0.05f);
+    DebugVars.RC_Gain_Test = fmin(DebugVars.RC_Gain_Test,10.0f);
+    if (FOC.CurRC_Enabled)
+    {
+        w_temp = FOC.Motor.Speed_Elec * 6 * Freq_PMSM.T_Ctrl;
+        err_id = FOC.Id_PID.err * FOC.Motor.Speed_Elec * 6 * Freq_PMSM.T_Ctrl
+                * DebugVars.RC_Gain_Test;
+
+        FOC.Id_RC.num1 = cos(2 * w_temp);
+        FOC.Id_RC.num2 = -cos(w_temp);
+        FOC.Id_RC.den = -2 * FOC.Id_RC.num2 - DebugVars.BandWidth_Coff_Test;
+
+        FOC.Id_RC.u = FOC.Id_RC.den * FOC.Id_RC.u_z1 - ( 1 - DebugVars.BandWidth_Coff_Test ) * FOC.Id_RC.u_z2
+                + FOC.Id_RC.num1 * err_id + FOC.Id_RC.num2 * FOC.Id_RC.err_z1;
+        FOC.Id_RC.err_z1 = err_id;
+        FOC.Id_RC.u_z2 = FOC.Id_RC.u_z1;
+        FOC.Id_RC.u_z1 = FOC.Id_RC.u;
+
+        err_iq = FOC.Iq_PID.err * FOC.Motor.Speed_Elec * 6 * Freq_PMSM.T_Ctrl
+                * DebugVars.RC_Gain_Test;
+
+        FOC.Iq_RC.num1 = FOC.Id_RC.num1;
+        FOC.Iq_RC.num2 = FOC.Id_RC.num2;
+        FOC.Iq_RC.den = FOC.Id_RC.den;
+
+        FOC.Iq_RC.u = FOC.Iq_RC.den * FOC.Iq_RC.u_z1 - ( 1 - DebugVars.BandWidth_Coff_Test ) * FOC.Iq_RC.u_z2
+                + FOC.Iq_RC.num1 * err_iq + FOC.Iq_RC.num2 * FOC.Iq_RC.err_z1;
+        FOC.Iq_RC.err_z1 = err_iq;
+        FOC.Iq_RC.u_z2 = FOC.Iq_RC.u_z1;
+        FOC.Iq_RC.u_z1 = FOC.Iq_RC.u;
+    }
+    else
+    {
+        memset((void*) &FOC.Id_RC, 0, sizeof(FOC.Id_RC));
+        memset((void*) &FOC.Iq_RC, 0, sizeof(FOC.Iq_RC));
+    }
+}
+void FOC_SpeedCloseLoop()
+{
+    FOC.Speed_PID.err = FOC.Speed_PID.Ref - FOC.Motor.Speed_RPM;
+
+    FOC.Speed_PID.PIDU += FOC.Speed_PID.Kp
+            * (FOC.Speed_PID.err - FOC.Speed_PID.err1)
+            + FOC.Speed_PID.Ki * FOC.Speed_PID.err;
+    FOC.Speed_PID.err1 = FOC.Speed_PID.err;
+
+    FOC.Speed_PID.PIDU = fmin(dRated_PMSMCurrent, FOC.Speed_PID.PIDU);
+    FOC.Speed_PID.PIDU = fmax(-dRated_PMSMCurrent, FOC.Speed_PID.PIDU);
+}
+
+void FOC_CurCloseLoop()
+{
+    Samp_Vars.fCurPMSM.Phase = FOC.Motor.Theta_Elec;
+    User_AB2DQ(&Samp_Vars.fCurPMSM);
+
+	 //FOC.Id_PID.Ref = - FOC.Iq_PID.Ref / 2;
+	 
+	 FOC.Impedance_Volt_d = - dPMSM_Lq * Samp_Vars.fCurPMSM.q * FOC.Motor.Speed_Elec;
+	 
+	 FOC.Impedance_Volt_q = dPMSM_Ld * Samp_Vars.fCurPMSM.d * FOC.Motor.Speed_Elec;
+
+    FOC.Id_PID.err = FOC.Id_PID.Ref - Samp_Vars.fCurPMSM.d;
+    FOC.Id_PID.PIDU += FOC.Id_PID.Kp * ( FOC.Id_PID.err - FOC.Id_PID.err1 ) + FOC.Id_PID.Ki * FOC.Id_PID.err
+    							+ 1*(FOC.Impedance_Volt_d - FOC.Impedance_Volt_d_z);
+    FOC.Id_PID.err1 = FOC.Id_PID.err;
+	 FOC.Impedance_Volt_d_z = FOC.Impedance_Volt_d;
+
+    FOC.Iq_PID.err = FOC.Iq_PID.Ref - Samp_Vars.fCurPMSM.q;
+    FOC.Iq_PID.PIDU += FOC.Iq_PID.Kp * ( FOC.Iq_PID.err - FOC.Iq_PID.err1 ) + FOC.Iq_PID.Ki * FOC.Iq_PID.err
+    							+ 1*(FOC.Impedance_Volt_q - FOC.Impedance_Volt_q_z);
+    FOC.Iq_PID.err1 = FOC.Iq_PID.err;
+	 FOC.Impedance_Volt_q_z = FOC.Impedance_Volt_q;
+
+    FOC_Saturation_FieldWeakening();
+
+    FOC_Resonant_Controllers();
+
+    FOC.Vol_Fund.d = FOC.Id_PID.PIDU;
+    FOC.Vol_Fund.q = FOC.Iq_PID.PIDU;
+    FOC.Vol_Fund.Phase = FOC.Motor.Theta_Elec_Comp;
+    User_DQ2AB(&FOC.Vol_Fund);
+
+    FOC.Vol.d = FOC.Id_PID.PIDU + FOC.Id_RC.u;// + FOC.Id_RC2.u;
+    FOC.Vol.q = FOC.Iq_PID.PIDU + FOC.Iq_RC.u;// + FOC.Iq_RC2.u;
+    FOC.Vol.Phase = FOC.Motor.Theta_Elec_Comp;
+    User_DQ2AB(&FOC.Vol);
+}
+inline void FOC_Saturation_FieldWeakening()
+{
+    /*Vd,Vq的限幅，电压极限圆*/
+    //计算该调制模式下能接受的最大输出电压幅值
+    FOC.FW.Vout_MagMax = Samp_Vars.fBusVolt
+            * ( dFOC_MaxModulationIndex / sqrtf(3));        //SVPWM case
+
+    FOC.FW.Vd_SatuVol = FOC.FW.Vout_MagMax;
+    FOC.Id_PID.PIDU = fminf(FOC.FW.Vd_SatuVol, FOC.Id_PID.PIDU);
+    FOC.Id_PID.PIDU = fmaxf(-FOC.FW.Vd_SatuVol, FOC.Id_PID.PIDU);
+    //Vq输出电压最大值由Vd当前值决定
+    FOC.FW.Vd_Mag2 = FOC.Id_PID.PIDU * FOC.Id_PID.PIDU;
+    FOC.FW.Vout_Mag2Max = FOC.FW.Vout_MagMax * FOC.FW.Vout_MagMax;
+    FOC.FW.Vq_SatuVol = sqrtf(FOC.FW.Vout_Mag2Max - FOC.FW.Vd_Mag2);
+    FOC.Iq_PID.PIDU = fminf(FOC.FW.Vq_SatuVol, FOC.Iq_PID.PIDU);
+    FOC.Iq_PID.PIDU = fmaxf(-FOC.FW.Vq_SatuVol, FOC.Iq_PID.PIDU);
+    /*                  *
+     *  ——————————————  *
+     * √ V d^2 +V q^2   */
+    FOC.FW.Vq_Mag2 = FOC.Iq_PID.PIDU * FOC.Iq_PID.PIDU;
+    FOC.FW.Vout_Mag = sqrtf(FOC.FW.Vd_Mag2 + FOC.FW.Vq_Mag2);
+    //计算调制比
+    FOC.FW.Vout_Modulation = FOC.FW.Vout_Mag / FOC.FW.Vout_MagMax;
+    //计算弱磁前馈电流
+    if ( dPMSM_Flux
+            * FOC.FW.Speed_Elec_Ref> FOC.FW.Vout_MagMax * dFOC_FWCModulationIndex)
+    {
+        FOC.FW.IdRefCalc = (FOC.FW.Vout_MagMax * dFOC_FWCModulationIndex
+                / FOC.FW.Speed_Elec_Ref - dPMSM_Flux) / dPMSM_Ld;
+        SYSFlag.bit.FOC_FieldWeakening_Flag = 1;
+    }
+    else
+    {
+        FOC.FW.IdRefCalc = 0;
+        SYSFlag.bit.FOC_FieldWeakening_Flag = 0;
+    }
+    //根据调制信号自动调节弱磁电流
+    FOC.FW.IdRefInte += ( dFOC_FWCModulationIndex - FOC.FW.Vout_Modulation)
+            * Freq_PMSM.T_Ctrl * dFOC_FWCInteGain;
+    FOC.FW.IdRefSum = FOC.FW.IdRefInte + FOC.FW.IdRefCalc;
+    if (FOC.FW.IdRefSum > 0)
+    {
+        FOC.FW.IdRefSum = 0;
+        FOC.FW.IdRefInte = FOC.FW.IdRefSum - FOC.FW.IdRefCalc;
+    }
+    else if (FOC.FW.IdRefSum < dFOC_MaxFWCId)
+    {
+        FOC.FW.IdRefSum = dFOC_MaxFWCId;
+        FOC.FW.IdRefInte = FOC.FW.IdRefSum - FOC.FW.IdRefCalc;
+    }
+    //更新下次控制的Id参考值
+    FOC.Id_PID.Ref = FOC.FW.IdRefSum;
+    //判断能否运行谐振控制器工作
+    if (FOC.FW.Vout_Modulation > dFOC_CurRCDisabledModuIndex)
+    {
+        FOC.CurRC_Enabled = 0;
+    }
+    else if (FOC.FW.Vout_Modulation < dFOC_CurRCEnabledModuIndex)
+    {
+        FOC.CurRC_Enabled = 1;
+    }
+}
+
+
+
+
+
+
+
+void FOC_SMO()
+{
+Uint16 SMO_Count;
+    float CurMag = sqrtf(Samp_Vars.fCurPMSM.A * Samp_Vars.fCurPMSM.A + Samp_Vars.fCurPMSM.B * Samp_Vars.fCurPMSM.B);
+    FOC.SMO.wedqgain_temp = FOC.SMO.Ldqgain * FOC.SMO.speed_elec_est;
+    FOC.SMO.u_Aall_k2 = FOC.SMO.u_Aall_k1;
+    FOC.SMO.u_Ball_k2 = FOC.SMO.u_Ball_k1;
+    FOC.SMO.u_Aall_k1 = FOC.Vol_Fund.A;
+    FOC.SMO.u_Ball_k1 = FOC.Vol_Fund.B;
+    
+    FOC.SMO.EMF_filter_w = SpeedRef.Value / 60 * PI_2 * dPMSM_Npp;
+    FOC.SMO.EMF_filter_w = fmaxf(FOC.SMO.EMF_filter_w,1000);
+    FOC.SMO.EMF_filter_den = expf(-FOC.SMO.EMF_filter_w * FOC.SMO.Ts);
+    FOC.SMO.EMF_filter_num = 1 - FOC.SMO.EMF_filter_den;
+    
+    if( FOC.SMO.speed_elec_est * CurMag * FOC.SMO.flux_gain > 30 )
+        FOC.SMO.smo_gain = FOC.SMO.speed_elec_est * CurMag * FOC.SMO.flux_gain;
+    else
+        FOC.SMO.smo_gain = 30;
+    if( FOC.SMO.speed_elec_est * FOC.SMO.EMF_PLL_gain > 2 )
+        FOC.SMO.PLL_error_norm_gain = 1 / ( FOC.SMO.speed_elec_est * FOC.SMO.EMF_PLL_gain );
+    else
+        FOC.SMO.PLL_error_norm_gain = 0.5;
+    FOC.SMO.theta_filter_comp = atanf(SpeedRef.Value / 60 * PI_2 * dPMSM_Npp / FOC.SMO.EMF_filter_w);
+
+    for( SMO_Count = dFOC_SMO_IterateCount ; SMO_Count > 0 ; SMO_Count-- )
+    {
+        FOC.SMO.error_iA = 1 * ( FOC.SMO.i_Ahat - Samp_Vars.fCurPMSM.A );
+        FOC.SMO.error_iB = 1 * ( FOC.SMO.i_Bhat - Samp_Vars.fCurPMSM.B );
+
+        FOC.SMO.error_iA = fminf(FOC.SMO.error_iA, 1);
+        FOC.SMO.error_iA = fmaxf(FOC.SMO.error_iA, -1);
+        FOC.SMO.error_iB = fminf(FOC.SMO.error_iB, 1);
+        FOC.SMO.error_iB = fmaxf(FOC.SMO.error_iB, -1);
+
+        FOC.SMO.z_A = FOC.SMO.error_iA * FOC.SMO.smo_gain;
+        FOC.SMO.z_B = FOC.SMO.error_iB * FOC.SMO.smo_gain;
+
+        FOC.SMO.i_Ahat = FOC.SMO.i_Ahat - FOC.SMO.Ts * ( FOC.SMO.z_A * FOC.SMO.Lgain + FOC.SMO.i_Ahat * FOC.SMO.Ugain );
+        FOC.SMO.i_Bhat = FOC.SMO.i_Bhat - FOC.SMO.Ts * ( FOC.SMO.z_B * FOC.SMO.Lgain + FOC.SMO.i_Bhat * FOC.SMO.Ugain );
+
+        FOC.SMO.EMF_A = FOC.SMO.EMF_filter_den * FOC.SMO.EMF_A
+                + FOC.SMO.EMF_filter_num * ( FOC.SMO.z_A + FOC.SMO.u_Aall_k2 - FOC.SMO.wedqgain_temp * FOC.SMO.i_Bhat );
+        FOC.SMO.EMF_B = FOC.SMO.EMF_filter_den * FOC.SMO.EMF_B
+                + FOC.SMO.EMF_filter_num * ( FOC.SMO.z_B + FOC.SMO.u_Ball_k2 + FOC.SMO.wedqgain_temp * FOC.SMO.i_Ahat );
+
+        FOC.SMO.PLL_error = -FOC.SMO.EMF_A * cosf(FOC.SMO.theta_est_inte)
+                - FOC.SMO.EMF_B * sinf(FOC.SMO.theta_est_inte);
+        FOC.SMO.PLL_error *= FOC.SMO.PLL_error_norm_gain;
+
+        FOC.SMO.PLL_out += FOC.SMO.PLL_Kp * ( FOC.SMO.PLL_error - FOC.SMO.PLL_error1 )
+                + FOC.SMO.PLL_Ki * FOC.SMO.PLL_error;
+        FOC.SMO.PLL_error1 = FOC.SMO.PLL_error;
+
+        FOC.SMO.theta_est_inte += FOC.SMO.Ts * FOC.SMO.PLL_out;
+        if( FOC.SMO.theta_est_inte > PI_2 )
+            FOC.SMO.theta_est_inte -= PI_2;
+
+        FOC.SMO.speed_elec_est = FOC.SMO.we_filter_den * FOC.SMO.speed_elec_est
+                + FOC.SMO.we_filter_num * FOC.SMO.PLL_out;
+    }
+    FOC.SMO.theta_est = FOC.SMO.theta_est_inte + FOC.SMO.theta_filter_comp;
+    if( FOC.SMO.theta_est > PI_2 )
+        FOC.SMO.theta_est -= PI_2;
+}
+
+
+
+
+
+
+/*********************************************************************
+* 内容摘要： 用户控制功能文件
+* 其它说明：
+* 当前版本： V0.0.5
+* 作   者： 拓邦微电研发中心
+* 完成日期： 2022-10-22
+*
+* 修改记录1：
+*    修改日期：
+*    版 本 号：
+*    修 改 人：
+*    修改内容：
+* 修改记录2：…
+**********************************************************************/
+
+
+
+void RefSoftStart_Init(struct RefSoftStart_STRUCT *Ref, Uint16 Ramp, float T_Ctrl)
+{
+    memset((void*) Ref, 0, sizeof(struct RefSoftStart_STRUCT));
+    Ref->SoftRamp = Ramp * T_Ctrl;
+}
+
+void RefSoftStart(struct RefSoftStart_STRUCT *Ref)
+{
+    if( Ref->ValueRef != Ref->ValueOpt )
+    {
+        Ref->SoftStartRampFlag = 1;
+        Ref->ValueOpt = Ref->ValueRef;
+        if( Ref->Value > Ref->ValueOpt )
+            Ref->dir = 0;
+        else
+            Ref->dir = 1;
+    }
+    if( Ref->SoftStartRampFlag == 1 )
+    {
+        if( Ref->dir == 1 )
+        {
+            if( Ref->Value < Ref->ValueOpt )
+            {
+                Ref->Value += Ref->SoftRamp;
+            }
+            else
+            {
+                Ref->Value = Ref->ValueOpt;
+                Ref->SoftStartRampFlag = 0;
+            }
+        }
+        else
+        {
+            if( Ref->Value > Ref->ValueOpt )
+            {
+                Ref->Value -= Ref->SoftRamp;
+            }
+            else
+            {
+                Ref->Value = Ref->ValueOpt;
+                Ref->SoftStartRampFlag = 0;
+            }
+        }
+    }
+}
+
+
+/**********************************************************************
+* 功能描述：重置PMSM参数
+***********************************************************************/
+void Para_Init_PMSM()
+{
+
+    FOC_Init();
+    RefSoftStart_Init(&SpeedRef, dSpeedSoft_ramp_gain, Freq_PMSM.T_Ctrl);
+    memset((void*) &PMSM_BootStrap, 0, sizeof( PMSM_BootStrap ));
+}
+/*
+ * Lib_3PPWM.c
+ *
+ *  Created on: 2024年3月7日
+ *      Author: wangyz1
+ */
+struct CMPA_BITS {                      // bits description
+    Uint16 CMPAHR:16;                   // 15:0 Compare A HRPWM Extension Register
+    Uint16 CMPA:16;                     // 31:16 Compare A Register
+};
+union CMPA_REG {
+    Uint32  all;
+    struct  CMPA_BITS  bit;
+};
+struct EPWM_REGS {
+    union   CMPA_REG                         CMPA;                         // Counter Compare A Register
+};
+
+//---------------------------------------------------------------------------
+// EPWM al References & Function Declarations:
+//
+struct EPWM_REGS EPwm1Regs;
+struct EPWM_REGS EPwm2Regs;
+struct EPWM_REGS EPwm3Regs;
+
+void SPWM(volatile struct DQTrans_STRUCT *Uout, float Vdc)
+{
+    float VdcLimit, Uout_a, Uout_b, Uout_c;
+    Vdc = fmax(Vdc, 1);
+    VdcLimit = Vdc * ( 0.5f * 0.90f );
+    Uout_a = fmin(Uout->a, VdcLimit);
+    Uout_a = fmax(Uout_a, -VdcLimit);
+    Uout_b = fmin(Uout->b, VdcLimit);
+    Uout_b = fmax(Uout_b, -VdcLimit);
+    Uout_c = fmin(Uout->c, VdcLimit);
+    Uout_c = fmax(Uout_c, -VdcLimit);
+
+    EPwm1Regs.CMPA.bit.CMPA = Freq_PMSM.EPWMPeriod * ( 0.5f + Uout_a / Vdc );
+    EPwm2Regs.CMPA.bit.CMPA = Freq_PMSM.EPWMPeriod * ( 0.5f + Uout_b / Vdc );
+    EPwm3Regs.CMPA.bit.CMPA = Freq_PMSM.EPWMPeriod * ( 0.5f + Uout_c / Vdc );
+}
+
+void SVPWM_Symmetrical(volatile struct DQTrans_STRUCT *Uout, float Vdc)
+{
+    float Uout_a, Uout_b, Uout_c, Uout_Max, Uout_Min;
+    int16 i16Uout_a, i16Uout_b, i16Uout_c;
+    Vdc = fmax(Vdc, 1);
+    Uout_Max = fmax(Uout->a, Uout->b);
+    Uout_Max = fmax(Uout_Max, Uout->c);
+    Uout_Min = fmin(Uout->a, Uout->b);
+    Uout_Min = fmin(Uout_Min, Uout->c);
+    Uout_a = Uout->a - ( Uout_Max + Uout_Min ) / 2;
+    Uout_b = Uout->b - ( Uout_Max + Uout_Min ) / 2;
+    Uout_c = Uout->c - ( Uout_Max + Uout_Min ) / 2;
+    //计算CMPA值
+    i16Uout_a = Freq_PMSM.EPWMPeriod * ( 0.5f + Uout_a / Vdc );
+    i16Uout_b = Freq_PMSM.EPWMPeriod * ( 0.5f + Uout_b / Vdc );
+    i16Uout_c = Freq_PMSM.EPWMPeriod * ( 0.5f + Uout_c / Vdc );
+
+
+    EPwm1Regs.CMPA.bit.CMPA = i16Uout_a;
+    EPwm2Regs.CMPA.bit.CMPA = i16Uout_b;
+    EPwm3Regs.CMPA.bit.CMPA = i16Uout_c;
+}
+
+void SVPWM_DPWM(volatile struct DQTrans_STRUCT *Uout, float Vdc)
+{
+    float i16Uout_a, i16Uout_b, i16Uout_c, i16Uout_Min;
+    Vdc = fmax(Vdc, 1);
+    //计算CMPA值
+    i16Uout_a = Freq_PMSM.EPWMPeriod * ( Uout->a / Vdc );
+    i16Uout_b = Freq_PMSM.EPWMPeriod * ( Uout->b / Vdc );
+    i16Uout_c = Freq_PMSM.EPWMPeriod * ( Uout->c / Vdc );
+    i16Uout_Min = fmin(i16Uout_a,fmin(i16Uout_b,i16Uout_c));
+    i16Uout_a -= i16Uout_Min;
+    i16Uout_b -= i16Uout_Min;
+    i16Uout_c -= i16Uout_Min;
+
+
+    EPwm1Regs.CMPA.bit.CMPA = i16Uout_a;
+    EPwm2Regs.CMPA.bit.CMPA = i16Uout_b;
+    EPwm3Regs.CMPA.bit.CMPA = i16Uout_c;
+}
+/**********************************************************************
+* 功能描述：参数初始化
+***********************************************************************/
+void Para_Init()
+{
+	 
+    Freq_PMSM.F_SW_Set = dF_SW_Set_PMSM;
+    Para_SW_Adj();
+    MainState = SYS_Waiting;
+    PMSMState = PMSMState_Waiting;
+    SYSFlag.all = 0;
+    FaultType.all = 0;
+    Para_Init_PMSM();
+    DebugVarsInit();
+}
+
+/**********************************************************************
+* 功能描述：调整开关频率
+***********************************************************************/
+void Para_SW_Adj()
+{
+    Freq_PMSM.F_SW_Set = dF_SW_Set_PMSM;
+	 Freq_PMSM.EPWMPeriod = 1540; 
+    Freq_PMSM.F_SW = Freq_PMSM.F_SW_Set;
+    Freq_PMSM.F_Ctrl = 1 * Freq_PMSM.F_SW;
+    Freq_PMSM.T_SW = 0.001f/Freq_PMSM.F_SW;
+    Freq_PMSM.T_Ctrl = 0.001f/Freq_PMSM.F_Ctrl;
+}
+
+void DebugVarsInit()
+{
+    memset((void *)&DebugVars,0,sizeof(DebugVars));
+    DebugVars.SpeedRef = dIF_Speed_FinalValue;
+}
+
+
+void FOC_PowerCloseLoop()
+{
+#if dPC_Control == 0//PC控制使能位
+    if(SYSFlag.bit.CAN_Connected == 1 && SYSFlag.bit.PWM_Connected == 0)
+    {
+        FOC.Power_PID.Ref = 1 *1000; //kW转换为W
+        FOC.Power_PID.Ref = fminf(5400,FOC.Power_PID.Ref);
+        FOC.Power_PID.Ref = fmaxf(1000,FOC.Power_PID.Ref);
+    }
+    else if(SYSFlag.bit.CAN_Connected == 0 && SYSFlag.bit.PWM_Connected == 1)
+    {
+        FOC.Power_PID.Ref = dMax_ActivePower;
+    }
+#endif
+#if dPC_Control == 1//PC控制使能位
+    FOC.Power_PID.Ref = dMax_ActivePower;
+#endif
+    FOC.Power_PID.err = FOC.Power_PID.Ref - FOC.CalPower;
+
+    FOC.Power_PID.PIDU += FOC.Power_PID.Kp
+           * (FOC.Power_PID.err - FOC.Power_PID.err1)
+            + FOC.Power_PID.Ki * FOC.Power_PID.err;
+    FOC.Power_PID.err1 = FOC.Power_PID.err;
+
+    FOC.Power_PID.PIDU = fmin(dRated_PowerDuty, FOC.Power_PID.PIDU);
+    FOC.Power_PID.PIDU = fmax(0.2f, FOC.Power_PID.PIDU);
+
+    FOC.PowerLimitGain = FOC.Power_PID.PIDU;
+
+
+}
+
+void FOC_IsCloseLoop()
+{
+    float FieldWeak_Gain;
+
+    FieldWeak_Gain = 0.0002f;
+
+    FOC.Is_PID.err = FOC.Is_PID.Ref - FOC.Motor.Speed_RPM;
+
+    FOC.Is_PID.PIDU += FOC.Is_PID.Kp * (FOC.Is_PID.err - FOC.Is_PID.err1)
+            + FOC.Is_PID.Ki * FOC.Is_PID.err;
+    FOC.Is_PID.err1 = FOC.Is_PID.err;
+
+    FOC.Is_PID.PIDU = fmin(dRated_IsCurrent, FOC.Is_PID.PIDU);
+    FOC.Is_PID.PIDU = fmax(-dRated_IsCurrent, FOC.Is_PID.PIDU);
+
+    if(FOC.CalPower >= 1000)
+    {
+        FOC.Is_PID.PIDU *= FOC.PowerLimitGain;
+    }
+
+    FOC.Motor.Theta_FieldWeak = FieldWeak_Gain * FOC.Motor.Speed_RPM;
+    FOC.Motor.Theta_FieldWeak = fminf(PI_4, FOC.Motor.Theta_FieldWeak);
+    FOC.Motor.Theta_FieldWeak = fmaxf(PI_18, FOC.Motor.Theta_FieldWeak);
+
+    FOC.Id_PID.Ref = -FOC.Is_PID.PIDU * sinf(FOC.Motor.Theta_FieldWeak);
+    FOC.Iq_PID.Ref = FOC.Is_PID.PIDU * cosf(FOC.Motor.Theta_FieldWeak);
+}
+
+inline void FOC_HFPLL_Resonant_Controllers()
+{
+    float w_temp, err_HFPLL;
+
+    if (FOC.HFPLLRC_Enabled)
+    {
+        w_temp = FOC.Square.speed_elec_est * Freq_PMSM.T_SW * dPMSM_Npp_inv;
+        err_HFPLL = FOC.Square.qerrorz;
+
+        FOC.HFPLL_RC.num2 = -cos(w_temp);
+        FOC.HFPLL_RC.den = 2 * FOC.HFPLL_RC.num2;
+
+        FOC.HFPLL_RC.u = FOC.HFPLL_RC.den * FOC.HFPLL_RC.u_z1
+                - FOC.HFPLL_RC.u_z2 + FOC.HFPLL_RC.num1 * err_HFPLL
+                + FOC.HFPLL_RC.num2 * FOC.HFPLL_RC.err_z1;
+        FOC.HFPLL_RC.err_z1 = err_HFPLL;
+        FOC.HFPLL_RC.u_z2 = FOC.HFPLL_RC.u_z1;
+        FOC.HFPLL_RC.u_z1 = FOC.HFPLL_RC.u;
+
+    }
+    else
+    {
+        memset((void*) &FOC.HFPLL_RC, 0, sizeof(FOC.HFPLL_RC));
+    }
+}
+/*
+ * Lib_PMSM_FOC.c
+ *
+ *  Created on: 2024年5月9日
+ *      Author: wangyz1、LWH
+ */
+
+
+
+
+
+void FOC_PowerDetect()
+{
+    float Calib_Vs;
+    float Calib_Gain;
+
+    FOC.ActivePower = (Samp_Vars.fCurPMSM.A * FOC.Vol_Fund.A
+            + Samp_Vars.fCurPMSM.B * FOC.Vol_Fund.B) * 1.5f;
+    FOC.ReactivePower = (Samp_Vars.fCurPMSM.A * FOC.Vol_Fund.B
+            - Samp_Vars.fCurPMSM.B * FOC.Vol_Fund.A) * 1.5f;
+    FOC.EstActivePower = Samp_Vars.fBusVoltFiltered * Samp_Vars.fBusCur;
+
+    /******/
+    Calib_Vs = (sqrtf(FOC.Vol.d * FOC.Vol.d + FOC.Vol.q * FOC.Vol.q))
+            / Samp_Vars.fBusVoltFiltered;
+    Calib_Vs = fminf(dEst_Vs_Max, Calib_Vs);
+    Calib_Vs = fmaxf(dEst_Vs_Min, Calib_Vs);
+    Calib_Gain = (Calib_Vs - dEst_Vs_Min) * dEst_Gain + dEst_Calib_Min;
+    /*FOC.EstPowerCur = (Samp_Vars.fCurPMSM.a * EPwm2Regs.CMPA.bit.CMPA
+            + Samp_Vars.fCurPMSM.b * EPwm1Regs.CMPA.bit.CMPA
+            + Samp_Vars.fCurPMSM.c * EPwm4Regs.CMPA.bit.CMPA)
+            / (Freq_PMSM.EPWMPeriod + dDeadTime_PMSM);*/
+    FOC.EstPowerCur *= Calib_Gain;
+    FOC.EstPowerCurFilter = 0.4f *FOC.EstPowerCur + 0.6f *FOC.EstPowerCurFilter;
+    FOC.CalPower = Samp_Vars.fBusVoltFiltered * FOC.EstPowerCurFilter;
+}
+
+void FOC_SquareInject(void)
+{
+    //每次中断反向
+    FOC.Square.inject_voltage = -FOC.Square.inject_voltage;
+    //电流获取
+    FOC.Square.High_Cur.a = Samp_Vars.fCurPMSM.a;
+    FOC.Square.High_Cur.b = Samp_Vars.fCurPMSM.b;
+    FOC.Square.High_Cur.c = Samp_Vars.fCurPMSM.c;
+    FOC.Square.High_Cur.Phase = FOC.Square.theta_est;
+    //Clark变换
+    User_abc2AB(&FOC.Square.High_Cur);
+    //Park变换
+    User_AB2DQ(&FOC.Square.High_Cur);
+    //函数处理
+    FOC.Square.qz = FOC.Square.High_Cur.q * FOC.Square.inject_gain;
+    FOC.Square.qerrorz = FOC.Square.qz - FOC.Square.qz1;
+    FOC.Square.qz1 = FOC.Square.qz;
+    FOC.Square.qerrorz = FOC.Square.qerrorz * FOC.Square.inject_voltage;
+    //锁相环
+    FOC.Square.PLL_out = FOC.Square.PLL_out
+            + dFOC_Square_PLL_Kp * (FOC.Square.qerrorz - FOC.Square.qerrorz1)
+            + dFOC_Square_PLL_Ki * FOC.Square.qerrorz;
+    FOC.Square.qerrorz1 = FOC.Square.qerrorz;
+    //滤波
+    FOC.HFPLLRC_Enabled = 1;    //滤波标志位
+    FOC_HFPLL_Resonant_Controllers();
+    //由锁相环得到角度
+    FOC.Square.theta_est += Freq_PMSM.T_SW
+            * (FOC.Square.PLL_out + FOC.HFPLL_RC.u);
+    if (FOC.Square.theta_est > 2 * PI)
+    {
+        FOC.Square.theta_est -= 2 * PI;
+    }
+    else if (FOC.Square.theta_est < 0)
+    {
+        FOC.Square.theta_est += 2 * PI;
+    }
+    //滤波
+    FOC.Square.speed_elec_est = dFOC_Square_Filter_num
+            * (FOC.Square.PLL_out + FOC.HFPLL_RC.u)
+            + dFOC_Square_Filter_den * FOC.Square.speed_elec_est;
+
+}
