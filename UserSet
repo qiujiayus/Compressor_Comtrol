@@ -1,0 +1,283 @@
+#include "f28002x_device.h"         // f28002x Headerfile Include File
+#include "f28002x.h"       // f28002x Include File
+
+/**********************************************************************
+* 功能描述：EPMW配置函数
+***********************************************************************/
+void UserSetEPWM()
+{
+
+    EALLOW;
+
+    CpuSysRegs.PCLKCR0.bit.TBCLKSYNC = 0;
+
+    EDIS;
+
+    //自举默认输出值
+    GPIO_writePin(0, 0);
+    GPIO_writePin(2, 0);
+    GPIO_writePin(4, 0);
+    GPIO_setDirectionMode(0, GPIO_DIR_MODE_OUT);
+    GPIO_setDirectionMode(2, GPIO_DIR_MODE_OUT);
+    GPIO_setDirectionMode(4, GPIO_DIR_MODE_OUT);
+
+    GPIO_setPinConfig(GPIO_0_EPWM1_A);
+    GPIO_setPinConfig(GPIO_1_EPWM1_B);
+    GPIO_setPinConfig(GPIO_2_EPWM2_A);
+    GPIO_setPinConfig(GPIO_3_EPWM2_B);
+    GPIO_setPinConfig(GPIO_4_EPWM3_A);
+    GPIO_setPinConfig(GPIO_5_EPWM3_B);
+    GPIO_setPinConfig(GPIO_6_EPWM4_A);
+
+    //TZ模块设定，完成
+    EALLOW;
+
+#if dLAUNCH_PAD == 0
+    EPwm1Regs.TZSEL.bit.OSHT1 = TZ_ENABLE;
+    EPwm2Regs.TZSEL.bit.OSHT1 = TZ_ENABLE;
+    EPwm3Regs.TZSEL.bit.OSHT1 = TZ_ENABLE;
+    EPwm1Regs.TZSEL.bit.OSHT2 = TZ_ENABLE;
+    EPwm2Regs.TZSEL.bit.OSHT2 = TZ_ENABLE;
+    EPwm3Regs.TZSEL.bit.OSHT2 = TZ_ENABLE;
+//    EPwm1Regs.TZSEL.bit.OSHT1 = TZ_ENABLE;
+//    EPwm2Regs.TZSEL.bit.OSHT1 = TZ_ENABLE;
+//    EPwm3Regs.TZSEL.bit.OSHT1 = TZ_ENABLE;
+#endif
+
+    EPwm1Regs.TZSEL.bit.OSHT5 = TZ_ENABLE;
+    EPwm2Regs.TZSEL.bit.OSHT5 = TZ_ENABLE;
+    EPwm3Regs.TZSEL.bit.OSHT5 = TZ_ENABLE;
+
+    EPwm4Regs.TZSEL.bit.OSHT5 = TZ_ENABLE;
+
+    EPwm1Regs.TZSEL.bit.OSHT6 = TZ_ENABLE;
+    EPwm2Regs.TZSEL.bit.OSHT6 = TZ_ENABLE;
+    EPwm3Regs.TZSEL.bit.OSHT6 = TZ_ENABLE;
+
+    EPwm4Regs.TZSEL.bit.OSHT6 = TZ_ENABLE;
+
+    EPwm1Regs.TZCTL.bit.TZA = TZ_FORCE_LO;
+    EPwm1Regs.TZCTL.bit.TZB = TZ_FORCE_LO;
+    EPwm2Regs.TZCTL.bit.TZA = TZ_FORCE_LO;
+    EPwm2Regs.TZCTL.bit.TZB = TZ_FORCE_LO;
+    EPwm3Regs.TZCTL.bit.TZA = TZ_FORCE_LO;
+    EPwm3Regs.TZCTL.bit.TZB = TZ_FORCE_LO;
+
+    EPwm4Regs.TZCTL.bit.TZA = TZ_FORCE_LO;
+
+    EPwm1Regs.TZCLR.bit.CBCPULSE = 1;               //CTR = PRD
+    EPwm2Regs.TZCLR.bit.CBCPULSE = 1;               //CTR = PRD
+    EPwm3Regs.TZCLR.bit.CBCPULSE = 1;               //CTR = PRD
+    EPwm4Regs.TZCLR.bit.CBCPULSE = 1;               //CTR = PRD
+
+    EPwm1Regs.TZFRC.bit.OST = 1;
+    EPwm2Regs.TZFRC.bit.OST = 1;
+    EPwm3Regs.TZFRC.bit.OST = 1;
+    EPwm4Regs.TZFRC.bit.OST = 1;
+
+//    EPwm2Regs.TZCTL.bit.DCAEVT1 = TZ_NO_CHANGE;
+//    EPwm2Regs.TZSEL.bit.DCAEVT1 = TZ_ENABLE;
+//    EPwm2Regs.DCTRIPSEL.bit.DCAHCOMPSEL = DC_COMBINATION;
+//    EPwm2Regs.TZDCSEL.bit.DCAEVT1 = 2;              //DCAH = HIGH
+//
+//    EPwm3Regs.TZCTL.bit.DCAEVT1 = TZ_NO_CHANGE;
+//    EPwm3Regs.TZSEL.bit.DCAEVT1 = TZ_ENABLE;
+//    EPwm3Regs.DCTRIPSEL.bit.DCAHCOMPSEL = DC_COMBINATION;
+//    EPwm3Regs.TZDCSEL.bit.DCAEVT1 = 2;              //DCAH = HIGH
+//
+//    EPwm4Regs.TZCTL.bit.DCAEVT1 = TZ_NO_CHANGE;
+//    EPwm4Regs.TZSEL.bit.DCAEVT1 = TZ_ENABLE;
+//    EPwm4Regs.DCTRIPSEL.bit.DCAHCOMPSEL = DC_COMBINATION;
+//    EPwm4Regs.TZDCSEL.bit.DCAEVT1 = 2;              //DCAH = HIGH
+
+    EDIS;
+//
+    EPwm1Regs.TBPRD = Freq_PMSM.EPWMPeriod;
+    EPwm1Regs.TBCTL.bit.CLKDIV = TB_DIV1;
+    EPwm1Regs.TBCTL.bit.HSPCLKDIV = TB_DIV1;
+    EPwm1Regs.TBCTL.bit.PHSDIR = TB_UP;
+    EPwm1Regs.TBCTL.bit.PRDLD = TB_SHADOW;
+    EPwm1Regs.TBCTL.bit.PHSEN = TB_ENABLE;             //使能同步
+    EPwm1Regs.TBPHS.bit.TBPHS = 0;
+    EPwm1Regs.TBCTL.bit.CTRMODE = TB_COUNT_UPDOWN;    // Count updown
+    EPwm1Regs.EPWMSYNCINSEL.bit.SEL = SYNC_IN_SRC_DISABLE_ALL;
+    EPwm1Regs.EPWMSYNCOUTEN.bit.ZEROEN = SYNC_OUT_SRC_ENABLE;
+
+    EPwm2Regs.TBPRD = Freq_PMSM.EPWMPeriod;
+    EPwm2Regs.TBCTL.bit.CLKDIV = TB_DIV1;
+    EPwm2Regs.TBCTL.bit.HSPCLKDIV = TB_DIV1;
+    EPwm2Regs.TBCTL.bit.PHSDIR = TB_UP;
+    EPwm2Regs.TBCTL.bit.PRDLD = TB_SHADOW;
+    EPwm2Regs.TBCTL.bit.PHSEN = TB_ENABLE;
+    EPwm2Regs.TBPHS.bit.TBPHS = 2;
+    EPwm2Regs.TBCTL.bit.CTRMODE = TB_COUNT_UPDOWN;    // Count updown
+    EPwm2Regs.EPWMSYNCINSEL.bit.SEL = SYNC_IN_SRC_SYNCOUT_EPWM1;
+
+    EPwm3Regs.TBPRD = Freq_PMSM.EPWMPeriod;
+    EPwm3Regs.TBCTL.bit.CLKDIV = TB_DIV1;
+    EPwm3Regs.TBCTL.bit.HSPCLKDIV = TB_DIV1;
+    EPwm3Regs.TBCTL.bit.PHSDIR = TB_UP;
+    EPwm3Regs.TBCTL.bit.PRDLD = TB_SHADOW;
+    EPwm3Regs.TBCTL.bit.PHSEN = TB_ENABLE;
+    EPwm3Regs.TBPHS.bit.TBPHS = 2;
+    EPwm3Regs.TBCTL.bit.CTRMODE = TB_COUNT_UPDOWN;    // Count updown
+    EPwm3Regs.EPWMSYNCINSEL.bit.SEL = SYNC_IN_SRC_SYNCOUT_EPWM1;
+
+    EPwm5Regs.TBPRD = Freq_PMSM.EPWMPeriod / 32 + 1;                            //Period of TB = 20kHz
+    EPwm5Regs.TBCTL.bit.CLKDIV = TB_DIV1;             // TBCLK = SYSCLKOUT /(HSPCLKDIV ��CLKDIV)
+    EPwm5Regs.TBCTL.bit.HSPCLKDIV = TB_DIV1;
+    EPwm5Regs.TBCTL.bit.PHSDIR = TB_UP;
+    EPwm5Regs.TBCTL.bit.PRDLD = TB_SHADOW;
+    EPwm5Regs.TBCTL.bit.PHSEN = TB_ENABLE;
+    EPwm5Regs.TBPHS.bit.TBPHS = 2;
+    EPwm5Regs.TBCTL.bit.CTRMODE = TB_COUNT_UP;    // Count updown
+    EPwm5Regs.EPWMSYNCINSEL.bit.SEL = SYNC_IN_SRC_SYNCOUT_EPWM1;
+
+    EPwm6Regs.TBPRD = Freq_10kHz.EPWMPeriod;
+    EPwm6Regs.TBCTL.bit.CLKDIV = TB_DIV1;             // TBCLK = SYSCLKOUT /(HSPCLKDIV ��CLKDIV)
+    EPwm6Regs.TBCTL.bit.HSPCLKDIV = TB_DIV1;
+    EPwm6Regs.TBCTL.bit.PHSDIR = TB_UP;
+    EPwm6Regs.TBCTL.bit.PRDLD = TB_SHADOW;
+    EPwm6Regs.TBCTL.bit.PHSEN = TB_ENABLE;
+    EPwm6Regs.TBPHS.bit.TBPHS = 2;
+    EPwm6Regs.TBCTL.bit.CTRMODE = TB_COUNT_UPDOWN;    // Count updown
+    EPwm6Regs.EPWMSYNCINSEL.bit.SEL = SYNC_IN_SRC_DISABLE_ALL;
+
+    EPwm6Regs.TBCTR = 0;  //计数初值为0
+    EPwm6Regs.CMPA.bit.CMPA = 0;
+
+//    EPwm6Regs.AQCTLB.bit.CAU = AQ_CLEAR;
+//    EPwm6Regs.AQCTLB.bit.CAD = AQ_SET;
+//    //计数比较模块设定
+//
+    EPwm1Regs.TBCTR = 0;  //计数初值为0
+    EPwm1Regs.CMPA.bit.CMPA = 0;
+    EPwm1Regs.CMPB.bit.CMPB = 0;
+    EPwm1Regs.CMPCTL.bit.LOADAMODE = CC_CTR_PRD;
+    EPwm1Regs.CMPCTL.bit.LOADBMODE = CC_CTR_PRD;
+    EPwm1Regs.CMPCTL.bit.SHDWAMODE = CC_SHADOW;
+    EPwm1Regs.CMPCTL.bit.SHDWBMODE = CC_SHADOW;
+    EPwm1Regs.CMPC = Freq_PMSM.EPWMPeriod - ( dDeadTime_PMSM / 2);
+    EPwm1Regs.CMPCTL2.bit.LOADCMODE = CC_CTR_PRD;
+    EPwm1Regs.CMPCTL2.bit.SHDWCMODE = CC_SHADOW;
+
+    EPwm2Regs.TBCTR = 0;  //计数初值为0
+    EPwm2Regs.CMPA.bit.CMPA = 0;
+    EPwm2Regs.CMPB.bit.CMPB = 0;
+    EPwm2Regs.CMPCTL.bit.LOADAMODE = CC_CTR_PRD;
+    EPwm2Regs.CMPCTL.bit.LOADBMODE = CC_CTR_PRD;
+    EPwm2Regs.CMPCTL.bit.SHDWAMODE = CC_SHADOW;
+    EPwm2Regs.CMPCTL.bit.SHDWBMODE = CC_SHADOW;
+
+    EPwm3Regs.TBCTR = 0;  //计数初值为0
+    EPwm3Regs.CMPA.bit.CMPA = 0;
+    EPwm3Regs.CMPB.bit.CMPB = 0;
+    EPwm3Regs.CMPCTL.bit.LOADAMODE = CC_CTR_PRD;
+    EPwm3Regs.CMPCTL.bit.LOADBMODE = CC_CTR_PRD;
+    EPwm3Regs.CMPCTL.bit.SHDWAMODE = CC_SHADOW;
+    EPwm3Regs.CMPCTL.bit.SHDWBMODE = CC_SHADOW;
+
+//    // AQ模块设定
+
+    EPwm1Regs.AQCTL.bit.LDAQAMODE = CC_CTR_PRD;
+    EPwm1Regs.AQCTL.bit.LDAQBMODE = CC_CTR_PRD;
+    EPwm1Regs.AQCTL.bit.SHDWAQAMODE = 0x1;
+    EPwm1Regs.AQCTL.bit.SHDWAQBMODE = 0x1;
+    EPwm1Regs.AQCTLA.bit.CAD = AQ_SET;
+    EPwm1Regs.AQCTLA.bit.CAU = AQ_CLEAR;
+
+    EPwm2Regs.AQCTL.bit.LDAQAMODE = CC_CTR_PRD;
+    EPwm2Regs.AQCTL.bit.LDAQBMODE = CC_CTR_PRD;
+    EPwm2Regs.AQCTL.bit.SHDWAQAMODE = 0x1;
+    EPwm2Regs.AQCTL.bit.SHDWAQBMODE = 0x1;
+    EPwm2Regs.AQCTLA.bit.CAD = AQ_SET;
+    EPwm2Regs.AQCTLA.bit.CAU = AQ_CLEAR;
+
+    EPwm3Regs.AQCTL.bit.LDAQAMODE = CC_CTR_PRD;
+    EPwm3Regs.AQCTL.bit.LDAQBMODE = CC_CTR_PRD;
+    EPwm3Regs.AQCTL.bit.SHDWAQAMODE = 0x1;
+    EPwm3Regs.AQCTL.bit.SHDWAQBMODE = 0x1;
+    EPwm3Regs.AQCTLA.bit.CAD = AQ_SET;
+    EPwm3Regs.AQCTLA.bit.CAU = AQ_CLEAR;
+
+    EPwm1Regs.DBCTL.bit.IN_MODE  = DBA_ALL;
+    EPwm1Regs.DBCTL.bit.POLSEL   = DB_ACTV_HIC;
+    EPwm1Regs.DBCTL.bit.OUT_MODE = DB_FULL_ENABLE;
+    EPwm1Regs.DBRED.bit.DBRED = dDeadTime_PMSM;                        // 上升沿延迟，死区时间设为1us
+    EPwm1Regs.DBFED.bit.DBFED = dDeadTime_PMSM;                        // 下降沿延迟，死区时间设为1us
+    EPwm2Regs.DBCTL.bit.IN_MODE  = DBA_ALL;
+    EPwm2Regs.DBCTL.bit.POLSEL   = DB_ACTV_HIC;
+    EPwm2Regs.DBCTL.bit.OUT_MODE = DB_FULL_ENABLE;
+    EPwm2Regs.DBRED.bit.DBRED = dDeadTime_PMSM;                        // 上升沿延迟，死区时间设为1us
+    EPwm2Regs.DBFED.bit.DBFED = dDeadTime_PMSM;                        // 下降沿延迟，死区时间设为1us
+    EPwm3Regs.DBCTL.bit.IN_MODE  = DBA_ALL;
+    EPwm3Regs.DBCTL.bit.POLSEL   = DB_ACTV_HIC;
+    EPwm3Regs.DBCTL.bit.OUT_MODE = DB_FULL_ENABLE;
+    EPwm3Regs.DBRED.bit.DBRED = dDeadTime_PMSM;                        // 上升沿延迟，死区时间设为1us
+    EPwm3Regs.DBFED.bit.DBFED = dDeadTime_PMSM;                        // 下降沿延迟，死区时间设为1us
+
+
+
+//    EPwm1Regs.ETSEL.bit.SOCAEN = 1;                // 1 Enable the ADC Start of Conversion A (EPWMxSOCA) Pulse, Enable EPWMxSOCA pulse.
+//    EPWM_setADCTriggerSource(EPWM1_BASE,EPWM_SOC_A,EPWM_SOC_TBCTR_U_CMPC);      //通过CMPC补偿死区和采样保持时间造成的采样延迟
+////    EPwm1Regs.ETSEL.bit.SOCASEL = ET_CTR_PRD;     //PRD 触发ADC_A
+//    EPwm1Regs.ETPS.bit.SOCAPRD = ET_1ST;
+
+    EPwm1Regs.ETSEL.bit.INTEN = 1;
+    EPwm1Regs.ETSEL.bit.INTSEL = ET_CTR_PRD;
+    EPwm1Regs.ETPS.bit.INTPRD = ET_1ST;
+
+    EPwm5Regs.ETSEL.bit.SOCAEN = 1;
+    EPwm5Regs.ETSEL.bit.SOCASEL = ET_CTR_PRD;
+    EPwm5Regs.ETPS.bit.SOCAPRD = ET_1ST;
+
+    EPwm6Regs.ETSEL.bit.INTEN = 1;
+    EPwm6Regs.ETSEL.bit.INTSEL = ET_CTR_PRD;
+    EPwm6Regs.ETPS.bit.INTPRD = ET_1ST;
+
+    EALLOW;
+    CpuSysRegs.PCLKCR0.bit.TBCLKSYNC = 1;
+    EDIS;
+}
+
+/**********************************************************************
+* 功能描述：参数初始化
+***********************************************************************/
+void Para_Init()
+{
+    Freq_PMSM.F_SW_Set = dF_SW_Set_PMSM;
+    Freq_10kHz.F_SW_Set = dF_SW_Set_10kHz;
+    Para_SW_Adj(Freq_PMSM.F_SW_Set);
+    MainState = SYS_Waiting;
+    PMSMState = PMSMState_Waiting;
+    SYSFlag.all = 0;
+    FaultType.all = 0;
+    Para_Init_PMSM();
+    DebugVarsInit();
+}
+
+/**********************************************************************
+* 功能描述：调整开关频率
+***********************************************************************/
+void Para_SW_Adj(float PMSM_F_SW_Set)
+{
+    Freq_PMSM.EPWMPeriod = dEPWM_Cal_SW / PMSM_F_SW_Set;
+    Freq_PMSM.F_SW = dEPWM_Cal_SW / (float)Freq_PMSM.EPWMPeriod;
+    Freq_PMSM.F_Ctrl = 1 * Freq_PMSM.F_SW;
+    Freq_PMSM.T_SW = 0.001f/Freq_PMSM.F_SW;
+    Freq_PMSM.T_Ctrl = 0.001f/Freq_PMSM.F_Ctrl;
+
+    Freq_10kHz.EPWMPeriod = dEPWM_Cal_SW / Freq_10kHz.F_SW_Set;
+    Freq_10kHz.F_SW = dEPWM_Cal_SW / (float)Freq_10kHz.EPWMPeriod;
+    Freq_10kHz.F_Ctrl = 1 * Freq_10kHz.F_SW;
+    Freq_10kHz.T_SW = 0.001f/Freq_10kHz.F_SW;
+    Freq_10kHz.T_Ctrl = 0.001f/Freq_10kHz.F_Ctrl;
+}
+
+void DebugVarsInit()
+{
+    memset((void *)&DebugVars,0,sizeof(DebugVars));
+    DebugVars.SpeedRef = dIF_Speed_FinalValue;
+    DebugVars.BandWidth_Coff_Test = 0.02;
+    DebugVars.RC_Gain_Test = 3;
+}
