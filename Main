@@ -1,0 +1,282 @@
+//
+// Included Files
+//
+#include "f28002x_device.h"         // f28002x Headerfile Include File
+#include "f28002x.h"       // f28002x Examples Include File
+
+#pragma CODE_SECTION(User_ADC_PMSM_isr,".TI.ramfunc");
+#pragma CODE_SECTION(User_EPWM_isr_10kHz,".TI.ramfunc");
+#pragma CODE_SECTION(TIMER1_ISR,".TI.ramfunc");
+#pragma CODE_SECTION(LED,".TI.ramfunc");
+#pragma CODE_SECTION(SYSTEM_ERROR_SHUTDOWN,".TI.ramfunc");
+#pragma CODE_SECTION(MainLoop,".TI.ramfunc");
+
+void MainLoop();
+interrupt void User_ADC_PMSM_isr();
+interrupt void User_EPWM_isr_10kHz();
+//
+// Main
+//
+void main(void)
+{
+    Device_init();                                      // Initialize device clock and peripherals
+
+    Device_initGPIO();                                  // Disable pin locks and enable internal pull-ups.
+
+    Interrupt_initModule();                             // Initialize PIE and clear PIE registers. Disables CPU interrupts.
+
+    Interrupt_initVectorTable();                        // Initialize the PIE vector table with pointers to the shell Interrupt
+
+    Para_Init();                                        // Parameter Initialization
+
+    Board_init();                                       // PinMux and Peripheral Initialization
+
+    UserSetEPWM();
+
+    Serial_SCI_Init();
+
+    DMA_startChannel(myDMA0_BASE);
+    DMA_startChannel(BusVolDMA_BASE);
+
+
+    C2000Ware_libraries_init();                         // C2000Ware Library initialization
+
+
+    GPIO_setQualificationPeriod(233,5);
+
+//    while(!OffSetRes.FlagPMSM);
+    while(!SYSFlag.bit.NTCInit_OK)                // 等待NTC初始化读取完成
+    {
+        NTCTempInit();
+    }
+    ComCan_Init();
+    Interrupt_register(INT_EPWM1, &User_ADC_PMSM_isr);
+    Interrupt_enable(INT_EPWM1);
+//
+    Interrupt_register(INT_EPWM6, &User_EPWM_isr_10kHz);
+    Interrupt_enable(INT_EPWM6);
+    EINT;
+    ERTM;
+//    DebugVars.start = 1;
+#ifdef USE_GRAPH
+    DebugVars.fgraph1.ptr = &FOC.Iq_PID.PIDU;
+//    DebugVars.fgraph2.ptr = &Samp_Vars.fCurPMSM.b;
+    DebugVars.u16GraphFlag_debug = 1;
+#endif
+    PMSM_SpeedRPM_Set = dRatedSpeedRpm;
+    DataStorage_Init();
+
+    SysCtl_enableWatchdog();
+    MainLoop();
+
+}
+void MainLoop()
+{
+    while(1)
+    {
+        switch( MainState )
+        {
+        case SYS_Waiting:
+            PMSMState = PMSMState_Waiting;
+            if( DebugVars.start && tSysTimer.StartTimerFlag.bit.Normal_OFF == 0 )
+            {
+                DebugVars.start = 0;
+                MainState = SYS_PROCESS;
+            }
+            break;
+
+        case SYS_PROCESS:
+            if( Samp_Vars.fBusVolt > 205 && PMSMState == PMSMState_Waiting && !SYSFlag.bit.Machine_Lock_Flag)
+            {
+                PMSMState = PMSMState_NormalRun;
+            }
+            break;
+
+        case SYS_ERROR:
+            SYSTEM_ERROR_SHUTDOWN();
+            if(!SYSFlag.bit.Machine_Lock_Flag)
+            {
+                SelfReCover();
+            }
+
+            break;
+        case SYS_Debug1:
+            PMSMState = PMSMState_Debug;
+            break;
+        default:
+            break;
+        }
+        Serial_FiFO_TX();
+        Serial_SCI_RX();
+        ComCan_RxLoop();
+
+        DataStorage_loopStates();
+        SysCtl_serviceWatchdog();
+    }
+}
+interrupt void User_ADC_PMSM_isr()
+{
+    Abtain_PMSM_ADC_Result();
+
+    switch(PMSMState)
+    {
+    case PMSMState_Waiting:
+        Freq_PMSM.F_SW_Set = __fmin(Freq_PMSM.F_SW_Set, 12.0f);
+        Freq_PMSM.F_SW_Set = __fmax(Freq_PMSM.F_SW_Set, 6.0f);
+        if(!SYSFlag.bit.FOC_Init_Flag)
+        {
+            Para_Init_PMSM();
+        }
+
+        Para_SW_Adj(Freq_PMSM.F_SW_Set);
+        EPwm1Regs.TBPRD = Freq_PMSM.EPWMPeriod;
+        EPwm1Regs.CMPC = Freq_PMSM.EPWMPeriod - ( dDeadTime_PMSM / 2);
+        EPwm2Regs.TBPRD = Freq_PMSM.EPWMPeriod;
+        EPwm3Regs.TBPRD = Freq_PMSM.EPWMPeriod;
+        EPwm4Regs.TBPRD = Freq_PMSM.EPWMPeriod;
+        EPwm5Regs.TBPRD = Freq_PMSM.EPWMPeriod / 32 + 1;
+        PMSMInverterOff();
+        break;
+    case PMSMState_BootStrap:
+//        PMSMBootStrapOn();
+//        PMSM_BootStrap.BootStrap_Count++;
+//        if( PMSM_BootStrap.BootStrap_Count > 10 * Freq_PMSM.F_Ctrl)   // 上管预充10ms
+//        {
+//            PMSMBootStrapOff();
+//            PMSM_BootStrap.BootStrap_Count = 0;
+//            PMSMState = PMSMState_NormalRun;
+//            PMSM_BootStrap.BootStrap_Flag = 1;
+//        }
+        break;
+    case PMSMState_NormalRun:
+        SYSFlag.bit.FOC_Init_Flag = 0;
+        if( SYSFlag.bit.PMSM_Inverter_On == 0 )
+        {
+            PMSMInverterOn();
+        }
+#if dPMSM_Run_Mode_DVC == 1
+        DVC_StateMachine();
+        SVPWM_Symmetrical(&DVC.Vol,Samp_Vars.fBusVolt);
+#elif dPMSM_Run_Mode_FOC == 1
+        FOC_StateMachine();
+        User_AB2abc(&FOC.Vol);
+        SVPWM_Symmetrical(&FOC.Vol,Samp_Vars.fBusVolt);
+
+#endif
+        break;
+    case PMSMState_Debug:
+        DebugVars.Vol.d = 100;
+        DebugVars.Vol.q = 100;
+        if( SYSFlag.bit.PMSM_Inverter_On == 0 )
+        {
+            PMSMInverterOn();
+        }
+        User_DQ2AB(&DebugVars.Vol);
+        User_AB2abc(&DebugVars.Vol);
+        SVPWM_Symmetrical(&DebugVars.Vol,Samp_Vars.fBusVolt);
+        break;
+    case PMSMState_error:
+        PMSMInverterOff();
+    default:
+        break;
+    }
+
+    EPWM_clearEventTriggerInterruptFlag(EPWM1_BASE);
+    Interrupt_clearACKGroup(INTERRUPT_ACK_GROUP3);
+}
+
+interrupt void User_EPWM_isr_10kHz()
+{
+//    Uint16 IER_ST = IER;
+//    IER = ( IER_ST & ( ~M_INT13 ) ) | M_INT3;               //Can't be interrupt by 1msTimer
+//    Interrupt_clearACKGroup(INTERRUPT_ACK_GROUP3);          //清除同组ePWM中断响应
+//    EINT;
+
+    UpdateBlackBoxStorageInfo();
+
+    VOFA_Frame.fdata[0].all = FOC.Motor.Speed_RPM;
+    VOFA_Frame.fdata[1].all = Samp_Vars.fBusVolt;
+    VOFA_Frame.fdata[2].all = FOC.Vol.d; //
+    VOFA_Frame.fdata[3].all = FOC.Vol.q;
+    Serial_VOFA_TX_Prepare();
+
+    EPWM_clearEventTriggerInterruptFlag(EPWM6_BASE);
+    Interrupt_clearACKGroup(INTERRUPT_ACK_GROUP3);
+}
+interrupt void TIMER1_ISR()//1ms
+{
+    IER |= M_INT1 | M_INT3;
+
+    EINT;
+
+//    tSysTimer.u16Timer1msFlag = 1;
+//
+//    if( tSysTimer.StartTimerFlag.bit.Normal_OFF )
+//    {
+//        tSysTimer.StartTimerCount.Normal_OFF++;
+//        if( tSysTimer.StartTimerCount.Normal_OFF >= 30000 )
+//        {
+//            tSysTimer.StartTimerFlag.bit.Normal_OFF = 0;
+//            tSysTimer.StartTimerCount.Normal_OFF = 0;
+//        }
+//    }
+//    else
+//    {
+//        tSysTimer.StartTimerCount.Normal_OFF = 0;
+//    }
+
+    ComCan_DataUpdate();
+    ComCan_TxLoop();
+//    PMSM_SpeedRPM_Set = PMSM_SpeedRPM_Set_CAN;
+    if(SYSFlag.bit.CAN_DisConnected_Count == 1)
+    {
+        ComCan.Can_DisConnect_Count ++;
+        if(ComCan.Can_DisConnect_Count > 1000)
+        {
+            SYSFlag.bit.CAN_Connected = 0;
+        }
+    }else
+    {
+        ComCan.Can_DisConnect_Count = 0;
+    }
+    LED();
+    NTCTempProtect();
+    Serial_Tx_Process();
+
+
+
+
+    if(MainState == SYS_ERROR)
+    {
+        if(tSysTimer.SYSRecoveryFlag)
+        {
+            tSysTimer.u16SYSRecoveryCountNum ++;
+        }else
+        {
+            tSysTimer.u16SYSRecoveryCountNum = 0;
+        }
+    }
+
+}
+
+void LED()
+{
+    volatile static Uint16 u16LEDCountNum = 0;
+    u16LEDCountNum ++;
+    if( u16LEDCountNum > 1000 )
+    {
+        u16LEDCountNum = 0;
+        GPIO_togglePin(myBoardLED0_GPIO);
+    }
+}
+
+void SYSTEM_ERROR_SHUTDOWN()
+{
+    PMSMInverterOff();
+    MainState = SYS_ERROR;
+    PMSMState = PMSMState_error;
+//    ESTOP0;
+}
+//
+// End of File
+//
