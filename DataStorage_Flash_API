@@ -1,0 +1,317 @@
+/*
+ * DataStorage_Flash_API.c
+ *
+ *  Created on: 2023年10月16日
+ *      Author: wangyz1
+ */
+#include "f28002x_device.h"         // f28002x Headerfile Include File
+#include "f28002x.h"       // f28002x Include File
+#include "Lib_Flash_API/DataStorage_Flash_API.h"
+
+#pragma CODE_SECTION(DataStorage_loopStates,".TI.ramfunc");
+#pragma CODE_SECTION(UpdateBlackBoxStorageInfo,".TI.ramfunc");
+//#pragma CODE_SECTION(FAPI_EraseSector,".TI.ramfunc");
+//#pragma CODE_SECTION(FAPI_WaitErase,".TI.ramfunc");
+
+
+struct DataFlash_STRUCT DataFlash;
+volatile BLACKBOX_RECORD_INFO unBlackBoxStorageInfo;
+struct BlackBox_Info_STRUCT BlackBox_Info;
+void DataStorage_loopStates()
+{
+    Uint16 u16Data_Index_Read = 0;
+    Uint16 DF_Read_i = 0;
+    switch( DataFlash.state )
+    {
+    case DF_Wait:
+        if(DataFlash.Storage_EEPROM && DataFlash.EEPROM.Storage_EEPROM_Finished_Count < 2 && MainState == SYS_ERROR)
+        {
+            DataFlash.state = EEP_DataPrepare;
+        }
+
+        break;
+    case DF_Storage_Clearmore:
+        break;
+    case DF_Storage_Erase:
+        break;
+    case DF_Storage_WaitErase:
+        break;
+    case DF_Storage_DataPrepare:
+        break;
+    case DF_Storage_Program:
+        break;
+    case DF_Storage_Verify:
+        break;
+    case COR_Write:
+        FAPI_Correction_Write();
+        break;
+    case DF_Read:
+        while(1)
+        {
+            BlackBox_Info.DataFlash_EEPROM_ControlAddr[DF_Read_i] =  DataFlash.data[u16Data_Index_Read ++];
+            BlackBox_Info.FOC_CurRC_Enabled[DF_Read_i] = DataFlash.data[u16Data_Index_Read ++];
+            BlackBox_Info.FaultType_all[DF_Read_i] =  uint16_to_uint32(DataFlash.data[u16Data_Index_Read ++], DataFlash.data[u16Data_Index_Read ++]);
+            BlackBox_Info.Samp_Vars_fCurPMSM_a[DF_Read_i] =  uint16_to_float(DataFlash.data[u16Data_Index_Read ++], DataFlash.data[u16Data_Index_Read ++]);
+            BlackBox_Info.Samp_Vars_fCurPMSM_b[DF_Read_i] = uint16_to_float(DataFlash.data[u16Data_Index_Read ++], DataFlash.data[u16Data_Index_Read ++]);
+            BlackBox_Info.Samp_Vars_fCurPMSM_c[DF_Read_i] = uint16_to_float(DataFlash.data[u16Data_Index_Read ++], DataFlash.data[u16Data_Index_Read ++]);
+            BlackBox_Info.Samp_Vars_fBusVolt[DF_Read_i] = uint16_to_float(DataFlash.data[u16Data_Index_Read ++], DataFlash.data[u16Data_Index_Read ++]);
+            BlackBox_Info.FOC_Motor_Speed_RPM[DF_Read_i] = uint16_to_float(DataFlash.data[u16Data_Index_Read ++], DataFlash.data[u16Data_Index_Read ++]);
+            BlackBox_Info.FOC_ActivePower[DF_Read_i] = uint16_to_float(DataFlash.data[u16Data_Index_Read ++], DataFlash.data[u16Data_Index_Read ++]);
+            BlackBox_Info.FOC_FW_Vout_Modulation[DF_Read_i] = uint16_to_float(DataFlash.data[u16Data_Index_Read ++], DataFlash.data[u16Data_Index_Read ++]);
+            BlackBox_Info.PMSM_SpeedRPM_Set_CAN[DF_Read_i] = uint16_to_float(DataFlash.data[u16Data_Index_Read ++], DataFlash.data[u16Data_Index_Read ++]);
+            BlackBox_Info.Freq_PMSM_F_SW_Set[DF_Read_i] = uint16_to_float(DataFlash.data[u16Data_Index_Read ++], DataFlash.data[u16Data_Index_Read ++]);
+            BlackBox_Info.NTC_Temp_s16_NTC_IGBT_Temperature[DF_Read_i] = uint16_to_float(DataFlash.data[u16Data_Index_Read ++], DataFlash.data[u16Data_Index_Read ++]);
+//            BlackBox_Info.DATA[DF_Read_i] = DataFlash.data[u16Data_Index_Read ++];
+
+//            ESTOP0;
+            BlackBox_Info.StorageIndex[DF_Read_i] = DataFlash.data[(DF_Read_i + 1) * dBlackInfoPerGroupLength - 1];
+            u16Data_Index_Read = (DF_Read_i + 1) * dBlackInfoPerGroupLength;
+            DF_Read_i ++;
+            if(DF_Read_i >= dBlackInfoGroupNum - 1)
+            {
+                DF_Read_i = 0;
+                DataFlash.state = EEP_WaitErase;
+                break;
+            }
+        }
+        break;
+    case EEP_DataPrepare:
+        EEPROM_Storage_DataPrepare();
+        break;
+    case EEP_Program:
+
+        I2C_writeData(&DataFlash.EEPROM);
+
+        break;
+    case EEP_WaitErase:
+        if( DataFlash.EEPROM.n > dEEPROM_DataMaxNum / 2)
+        {
+            DataFlash.EEPROM.ControlAddr = 0;
+        }
+        else
+        {
+            DataFlash.EEPROM.ControlAddr   = dEEPROM_DataBytes * dEEPROM_DataMaxNum / 2 ;
+        }
+
+        memset((Uint16*) DataFlash.data, 0, sizeof(DataFlash.data));
+//        if(DataFlash.EEPROM.ControlAddr + dEEPROM_DataBytes < dEEPROM_DataBytes * dEEPROM_DataMaxNum)
+//        {
+//            DataFlash.EEPROM.ControlAddr = DataFlash.EEPROM.ControlAddr + dEEPROM_DataBytes;
+//        }else
+//        {
+//            DataFlash.EEPROM.ControlAddr = 0;
+//        }
+        DataFlash.EEPROM.NumOfAllDataBytes  = dEEPROM_DataBytes;
+        DataFlash.EEPROM.WritePtr           = 0;
+        DataFlash.EEPROM.WritePtrAllData    = 0;
+        DataFlash.EEPROM.state = I2C_WritePrepare;
+
+
+        DataFlash.state = EEP_Erase;
+        break;
+    case EEP_Erase:
+        I2C_writeData(&DataFlash.EEPROM);
+        break;
+
+    }
+}
+void UpdateBlackBoxStorageInfo()
+{
+    if(MainState != SYS_ERROR)
+    {
+        static Uint16 u16Data_Index_Write_1 = 0;
+        static Uint16 u16Data_Write_1 = 1;
+        unBlackBoxStorageInfo.u16Data[u16Data_Index_Write_1++] = DataFlash.EEPROM.ControlAddr;
+        unBlackBoxStorageInfo.u16Data[u16Data_Index_Write_1++] = FaultType.all;
+        unBlackBoxStorageInfo.u16Data[u16Data_Index_Write_1++] = FOC.CurRC_Enabled;
+        u16Data_Index_Write_1 = float_to_uint16(Samp_Vars.fCurPMSM.a, (uint16_t *)unBlackBoxStorageInfo.u16Data, u16Data_Index_Write_1);
+        u16Data_Index_Write_1 = float_to_uint16(Samp_Vars.fCurPMSM.b, (uint16_t *)unBlackBoxStorageInfo.u16Data, u16Data_Index_Write_1);
+        u16Data_Index_Write_1 = float_to_uint16(Samp_Vars.fCurPMSM.c, (uint16_t *)unBlackBoxStorageInfo.u16Data, u16Data_Index_Write_1);
+        u16Data_Index_Write_1 = float_to_uint16(Samp_Vars.fBusVolt, (uint16_t *)unBlackBoxStorageInfo.u16Data, u16Data_Index_Write_1);
+        u16Data_Index_Write_1 = float_to_uint16(FOC.Motor.Speed_RPM, (uint16_t *)unBlackBoxStorageInfo.u16Data, u16Data_Index_Write_1);
+        u16Data_Index_Write_1 = float_to_uint16(FOC.ActivePower, (uint16_t *)unBlackBoxStorageInfo.u16Data, u16Data_Index_Write_1);
+        u16Data_Index_Write_1 = float_to_uint16(FOC.FW.Vout_Modulation, (uint16_t *)unBlackBoxStorageInfo.u16Data, u16Data_Index_Write_1);
+        u16Data_Index_Write_1 = float_to_uint16(PMSM_SpeedRPM_Set_CAN, (uint16_t *)unBlackBoxStorageInfo.u16Data, u16Data_Index_Write_1);
+        u16Data_Index_Write_1 = float_to_uint16(Freq_PMSM.F_SW_Set, (uint16_t *)unBlackBoxStorageInfo.u16Data, u16Data_Index_Write_1);
+        u16Data_Index_Write_1 = float_to_uint16(NTC_Temp.s16_NTC_IGBT_Temperature, (uint16_t *)unBlackBoxStorageInfo.u16Data, u16Data_Index_Write_1);
+
+        unBlackBoxStorageInfo.u16Data[dBlackInfoPerGroupLength * u16Data_Write_1 - 1] = u16Data_Write_1;
+        u16Data_Index_Write_1 = dBlackInfoPerGroupLength * u16Data_Write_1;
+
+        u16Data_Write_1 ++;
+        if(u16Data_Index_Write_1 > dBlackInfoPerGroupLength * (dBlackInfoGroupNum / 2- 1))
+        {
+            Uint16 i;
+            for(i = 1;i <= dBlackInfoGroupNum / 2; i++)
+            {
+                unBlackBoxStorageInfo.u16Data[dBlackInfoPerGroupLength * i - 1] = 0;
+            }
+            u16Data_Index_Write_1 = 0;
+            u16Data_Write_1 = 1;
+        }
+
+    }
+    else if(MainState == SYS_ERROR && DataFlash.Storage_EEPROM == 0)
+    {
+
+        static Uint16 u16Data_Index_Write = dBlackInfoPerGroupLength * (dBlackInfoGroupNum / 2);
+        static Uint16 u16Data_Write = dBlackInfoGroupNum / 2;
+        unBlackBoxStorageInfo.u16Data[u16Data_Index_Write++] = DataFlash.EEPROM.ControlAddr;
+        unBlackBoxStorageInfo.u16Data[u16Data_Index_Write++] = FaultType.all;
+        unBlackBoxStorageInfo.u16Data[u16Data_Index_Write++] = FOC.CurRC_Enabled;
+        u16Data_Index_Write = float_to_uint16(Samp_Vars.fCurPMSM.a, (uint16_t *)unBlackBoxStorageInfo.u16Data, u16Data_Index_Write);
+        u16Data_Index_Write = float_to_uint16(Samp_Vars.fCurPMSM.b, (uint16_t *)unBlackBoxStorageInfo.u16Data, u16Data_Index_Write);
+        u16Data_Index_Write = float_to_uint16(Samp_Vars.fCurPMSM.c, (uint16_t *)unBlackBoxStorageInfo.u16Data, u16Data_Index_Write);
+        u16Data_Index_Write = float_to_uint16(Samp_Vars.fBusVolt, (uint16_t *)unBlackBoxStorageInfo.u16Data, u16Data_Index_Write);
+        u16Data_Index_Write = float_to_uint16(FOC.Motor.Speed_RPM, (uint16_t *)unBlackBoxStorageInfo.u16Data, u16Data_Index_Write);
+        u16Data_Index_Write = float_to_uint16(FOC.ActivePower, (uint16_t *)unBlackBoxStorageInfo.u16Data, u16Data_Index_Write);
+        u16Data_Index_Write = float_to_uint16(FOC.FW.Vout_Modulation, (uint16_t *)unBlackBoxStorageInfo.u16Data, u16Data_Index_Write);
+        u16Data_Index_Write = float_to_uint16(PMSM_SpeedRPM_Set_CAN, (uint16_t *)unBlackBoxStorageInfo.u16Data, u16Data_Index_Write);
+        u16Data_Index_Write = float_to_uint16(Freq_PMSM.F_SW_Set, (uint16_t *)unBlackBoxStorageInfo.u16Data, u16Data_Index_Write);
+        u16Data_Index_Write = float_to_uint16(NTC_Temp.s16_NTC_IGBT_Temperature, (uint16_t *)unBlackBoxStorageInfo.u16Data, u16Data_Index_Write);
+
+        unBlackBoxStorageInfo.u16Data[dBlackInfoPerGroupLength * u16Data_Write  - 1] = u16Data_Write;
+        u16Data_Index_Write = dBlackInfoPerGroupLength * u16Data_Write;
+        u16Data_Write ++;
+
+        Uint16 dBlackInfoGroupIndex = (u16Data_Index_Write) / dBlackInfoPerGroupLength;
+        unBlackBoxStorageInfo.u16Data[u16Data_Index_Write - 1] = dBlackInfoGroupIndex;
+
+        if(u16Data_Index_Write > dBlackInfoPerGroupLength * (dBlackInfoGroupNum - 1))
+        {
+            DataFlash.Storage_EEPROM = 1;
+        }
+    }
+}
+inline void DataStorage_Init_FlashAPI()
+{
+
+}
+
+inline void DataStorage_Init_FLASH()
+{
+
+
+
+}
+
+void FAPI_Storage_CheckDemage(void)
+{
+
+}
+
+
+void DataStorage_Init()
+{
+    memset((void *)&DataFlash,0,sizeof(DataFlash));
+    DataFlash.state = DF_Initial;
+    DataStorage_Init_EEPROM();
+//    memset((void *)&unBlackBoxStorageInfo.u16Data,0,sizeof(unBlackBoxStorageInfo.u16Data));
+
+
+}
+
+void FAPI_Clearmore(void)
+{
+
+}
+
+void FAPI_EraseSector(void)
+{
+
+}
+
+void FAPI_WaitErase(void)
+{
+
+}
+
+void FAPI_Storage_DataPrepare()
+{
+
+}
+
+
+void FAPI_Program()
+{
+
+}
+
+void FAPI_Verify()
+{
+
+}
+
+void FAPI_Correction_Write()
+{
+
+}
+
+void Example_Error(Fapi_StatusType status)
+{
+    //
+    //  Error code will be in the status parameter
+    //
+    __asm("    ESTOP0");
+}
+
+void FMSTAT_Fail(void)
+{
+    __asm("    ESTOP0");
+}
+
+void ECC_Fail(void)
+{
+    __asm("    ESTOP0");
+}
+
+//TODO:Reserved
+void readFlash_StorageData(Uint16 *Addr)
+{
+    memcpy_fast((Uint16*) unBlackBoxStorageInfo.u16Data, Addr, sizeof(unBlackBoxStorageInfo.u16Data));
+    return;
+}
+void readFlash_BlackBoxData(Uint16 *Addr)
+{
+//    memcpy_fast((Uint16*) unBlackBoxHistory.u16Data, Addr, sizeof(unBlackBoxHistory.u16Data));  //Pmbus读取BlackBox历史记录数据
+    return;
+}
+
+void readFlash_Data(Uint16 *Addr,Uint16 *u16Data,uint16 u16Len)
+{
+    memcpy_fast(u16Data, Addr, u16Len);
+    return;
+}
+
+/* 把 float 拆成 2 个 uint16_t，存入 out[2] */
+inline uint16_t float_to_uint16(float value, Uint16 *out, uint16_t u16Data_Index)
+{
+    /* 1. 先把 float 的位模式原样复制到 32 位无符号整数 */
+    uint32_t u32;
+    memcpy(&u32, &value, sizeof(u32));
+
+    /* 2. 拆成高 16 位和低 16 位 */
+    out[u16Data_Index ++] = (uint16_t)(u32 >> 16); /* 高 16 位 */
+    out[u16Data_Index ++] = (uint16_t)(u32 & 0xFFFFu); /* 低 16 位 */
+    return u16Data_Index;
+}
+
+/* 从 2 个 uint16_t 还原成 float */
+inline float uint16_to_float(uint16_t in1, uint16_t in2)
+{
+    /* 1. 拼回 32 位无符号整数 */
+    uint32_t u32 = ((uint32_t)in1 << 16) | in2;
+
+    /* 2. 把位模式原样复制到 float */
+    float value;
+    memcpy(&value, &u32, sizeof(value));
+    return value;
+}
+
+/* 从 2 个 uint16_t 还原成 float */
+inline float uint16_to_uint32(uint16_t in1, uint16_t in2)
+{
+    /* 1. 拼回 32 位无符号整数 */
+    uint32_t u32 = ((uint32_t)in1 << 16) | in2;
+    return u32;
+}
